@@ -1,0 +1,47 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.hypothesis/
+
+# Virtual environments and local environment variables
+.venv/
+venv/
+env/
+ENV/
+.env
+.env.*
+!.env.example
+
+# Packaging and build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+
+# Test and coverage output
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+*.log
+
+# Editors and IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Operating-system metadata
+.DS_Store
+Thumbs.db
+
+# Jupyter checkpoints
+.ipynb_checkpoints/

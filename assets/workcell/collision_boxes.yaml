@@ -1,0 +1,275 @@
+units: mm
+pedestals:
+- center:
+  - 0.0
+  - 0.0
+  - -306.0
+  half_extents:
+  - 190.0
+  - 190.0
+  - 304.0
+  faces: 554
+- center:
+  - 850.0
+  - 0.0
+  - -306.0
+  half_extents:
+  - 190.0
+  - 190.0
+  - 304.0
+  faces: 554
+boxes:
+- center:
+  - 1379.4
+  - 699.5
+  - 488.0
+  half_extents:
+  - 40.0
+  - 40.0
+  - 914.4
+  faces: 1760
+- center:
+  - 425.0
+  - 89.9
+  - 1522.4
+  half_extents:
+  - 914.4
+  - 40.0
+  - 40.0
+  faces: 1760
+- center:
+  - 1379.4
+  - -174.9
+  - 1442.4
+  half_extents:
+  - 40.0
+  - 914.4
+  - 40.0
+  faces: 1760
+- center:
+  - 425.0
+  - 699.5
+  - 799.0
+  half_extents:
+  - 914.4
+  - 40.0
+  - 40.0
+  faces: 1760
+- center:
+  - 425.0
+  - 699.5
+  - -466.4
+  half_extents:
+  - 914.4
+  - 40.0
+  - 40.0
+  faces: 1760
+- center:
+  - 425.0
+  - 699.5
+  - 1442.4
+  half_extents:
+  - 914.4
+  - 40.0
+  - 40.0
+  faces: 1760
+- center:
+  - -529.4
+  - -174.9
+  - 1442.4
+  half_extents:
+  - 40.0
+  - 914.4
+  - 40.0
+  faces: 1760
+- center:
+  - 425.0
+  - -126.0
+  - 1522.4
+  half_extents:
+  - 914.4
+  - 40.0
+  - 40.0
+  faces: 1760
+- center:
+  - 1379.4
+  - -1049.3
+  - 488.0
+  half_extents:
+  - 40.0
+  - 40.0
+  - 914.4
+  faces: 1760
+- center:
+  - -529.4
+  - 699.5
+  - 488.0
+  half_extents:
+  - 40.0
+  - 40.0
+  - 914.4
+  faces: 1760
+- center:
+  - -529.4
+  - -1049.3
+  - 488.0
+  half_extents:
+  - 40.0
+  - 40.0
+  - 914.4
+  faces: 1760
+- center:
+  - 425.0
+  - -1049.3
+  - 799.0
+  half_extents:
+  - 914.4
+  - 40.0
+  - 40.0
+  faces: 1760
+- center:
+  - 1379.4
+  - -174.9
+  - -466.4
+  half_extents:
+  - 40.0
+  - 914.4
+  - 40.0
+  faces: 1760
+- center:
+  - -529.4
+  - -174.9
+  - -466.4
+  half_extents:
+  - 40.0
+  - 914.4
+  - 40.0
+  faces: 1760
+- center:
+  - 425.0
+  - -1049.3
+  - -466.4
+  half_extents:
+  - 914.4
+  - 40.0
+  - 40.0
+  faces: 1760
+- center:
+  - 425.0
+  - -254.7
+  - 1565.4
+  half_extents:
+  - 318.0
+  - 33.4
+  - 22.3
+  faces: 2468
+- center:
+  - 425.0
+  - -252.7
+  - 1650.4
+  half_extents:
+  - 310.0
+  - 22.9
+  - 62.7
+  faces: 1664
+- center:
+  - 425.0
+  - -237.8
+  - 1618.9
+  half_extents:
+  - 325.0
+  - 42.7
+  - 109.7
+  faces: 6204
+- center:
+  - 425.0
+  - -300.7
+  - 1603.2
+  half_extents:
+  - 325.0
+  - 99.5
+  - 124.0
+  faces: 29630
+- center:
+  - 425.0
+  - 177.2
+  - 1621.7
+  half_extents:
+  - 100.0
+  - 39.3
+  - 70.1
+  faces: 996
+- center:
+  - 425.0
+  - 218.6
+  - 1565.4
+  half_extents:
+  - 318.0
+  - 33.4
+  - 22.3
+  faces: 2468
+- center:
+  - 425.0
+  - 216.7
+  - 1650.4
+  half_extents:
+  - 310.0
+  - 22.9
+  - 62.7
+  faces: 1664
+- center:
+  - 425.0
+  - 201.7
+  - 1618.9
+  half_extents:
+  - 325.0
+  - 42.7
+  - 109.7
+  faces: 6204
+- center:
+  - 425.0
+  - 264.6
+  - 1603.2
+  half_extents:
+  - 325.0
+  - 99.5
+  - 124.0
+  faces: 29630
+- center:
+  - 425.0
+  - -213.3
+  - 1621.7
+  half_extents:
+  - 100.0
+  - 39.3
+  - 70.1
+  faces: 996
+- center:
+  - 425.0
+  - 647.0
+  - 887.6
+  half_extents:
+  - 202.0
+  - 72.1
+  - 124.2
+  faces: 108
+- center:
+  - 425.0
+  - 562.5
+  - 898.5
+  half_extents:
+  - 203.6
+  - 124.2
+  - 136.5
+  faces: 14290
+- center:
+  - 425.0
+  - 578.7
+  - 957.4
+  half_extents:
+  - 202.0
+  - 139.6
+  - 115.7
+  faces: 7200
+note: pedestal tops shaved 2mm below mount plane to avoid false contact with robot
+  base

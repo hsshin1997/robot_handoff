@@ -1,0 +1,189 @@
+# Handoff cell configuration. Distances in meters, angles in radians.
+# World frame = workcell STL frame scaled mm -> m (robot A mount flange = origin, z up).
+
+assets:
+  gp7_urdf: assets/gp7/gp7.urdf
+  workcell_visual: assets/workcell/workcell.stl # raw 724k-tri STL (mm, scaled 0.001); visual only. Decimated copy kept as workcell_viz.stl if the GUI lags.
+  workcell_collision: assets/workcell/collision_boxes.yaml
+
+# 4x4 row-major transforms, world <- robot base.
+# Cone pedestal tops measured from the STL: A at (0,0,0), B at (0.850,0,0).
+# At home (all joints 0) the GP7 extends along its base +X, so:
+#   A yaw = 0    -> faces +X (toward B)
+#   B yaw = pi   -> faces -X (toward A)
+robotA_base:
+  - [1.0, 0.0, 0.0, 0.0]
+  - [0.0, 1.0, 0.0, 0.0]
+  - [0.0, 0.0, 1.0, 0.0]
+  - [0.0, 0.0, 0.0, 1.0]
+robotB_base:
+  - [-1.0, 0.0, 0.0, 0.850]
+  - [0.0, -1.0, 0.0, 0.0]
+  - [0.0, 0.0, 1.0, 0.0]
+  - [0.0, 0.0, 0.0, 1.0]
+
+# Home: yawed toward each robot's work side (A -> bin/nest at +y,
+# B -> pcb at -y), wrists tucked. All-zero home makes the two grippers
+# overlap between the pedestals.
+home_qA: [0.9, -0.4, 0.3, 0.0, -0.9, 0.0]
+home_qB: [0.9, -0.4, 0.3, 0.0, -0.9, 0.0]
+
+floor_z: -0.610 # pedestal bases / cell feet
+
+# ---- PLACEHOLDER values below: replace with measured ones ----
+
+# Part: the 1x11 right-angle pin header. Mesh is already in meters.
+# part_half_extents is the box fallback if part_mesh is absent/commented.
+# (binary STL: pybullet's STL loader can't read the ascii original)
+part_mesh: "parts/conn_header/conn_header_bin.stl"
+part_half_extents: [0.015, 0.005, 0.005]
+
+# Known grasp: part pose in A's flange (tool0) frame.
+# Gripper TCP is 0.200 m along tool0 +x (see gp7.urdf tool0->gripper->tcp),
+# so the part sits centered in the fingers at the TCP. PLACEHOLDER.
+T_flangeA_part:
+  - [1.0, 0.0, 0.0, 0.200]
+  - [0.0, 0.0, 1.0, 0.0]
+  - [0.0, -1.0, 0.0, 0.0]
+  - [0.0, 0.0, 0.0, 1.0]
+# Regrasp demo: part rolled 90 deg in the fingers (gripped across its z-face)
+# -> provably no direct handoff, forces place-on-nest + re-pick. Swap in for
+# T_flangeA_part above to watch the recovery in --gui:
+#  - [1.0, 0.0, 0.0, 0.200]
+#  - [0.0, 0.0, 1.0, 0.0]
+#  - [0.0, -1.0, 0.0, 0.0]
+#  - [0.0, 0.0, 0.0, 1.0]
+
+# PCB: box (half extents) at a fixed world pose, on B's work side (-y),
+# on a stand to the cell floor. PLACEHOLDER location.
+pcb_half_extents: [0.050, 0.040, 0.0008]
+T_world_pcb:
+  - [1.0, 0.0, 0.0, 0.450]
+  - [0.0, 1.0, 0.0, -0.350]
+  - [0.0, 0.0, 1.0, 0.290] # board 1000 mm above cell floor (floor_z + 1.0)
+  - [0.0, 0.0, 0.0, 1.0]
+
+# Bin (part supply, A's work side) and reorientation nest (flat plate for
+# the regrasp branch). PLACEHOLDER poses/dims; both stand on the cell floor.
+# NOTE: keep bin/nest clear of the scanner head overhang (y > 0.44,
+# z 0.76-1.04) or a top-down approach jams the wrist into it.
+bin:
+  center_xy: [0.20, 0.32] # world x,y of bin center
+  interior: [0.20, 0.15] # inner length x width
+  wall_height: 0.10
+  wall_thickness: 0.008
+  interior_floor_z: 0.29 # inside bottom 1000 mm above cell floor
+nest:
+  center_xy: [0.50, 0.32] # world x,y of plate center
+  size: [0.15, 0.15] # plate length x width
+  top_z: 0.29 # plate top 1000 mm above cell floor
+
+# Grasp set for B: each entry is T_part_flangeB (B's flange pose expressed in
+# the PART frame). Flange x points along the approach direction; the TCP
+# (0.200 m along flange x) lands on the part origin. 4 approach directions
+# (+y/-y side grasps, -z top, +z bottom) x 2 rolls. A holds the part along
+# its x axis, so x approaches are excluded (A's gripper is there).
+# PLACEHOLDER set - replace with grasps matched to the real finger geometry.
+grasp_set_G:
+  - name: side_y+_r0
+    T:
+      - [0.0, -1.0, 0.0, 0.0]
+      - [1.0, 0.0, 0.0, -0.200]
+      - [0.0, 0.0, 1.0, 0.0]
+      - [0.0, 0.0, 0.0, 1.0]
+  - name: side_y+_r180
+    T:
+      - [0.0, 1.0, 0.0, 0.0]
+      - [1.0, 0.0, 0.0, -0.200]
+      - [0.0, 0.0, -1.0, 0.0]
+      - [0.0, 0.0, 0.0, 1.0]
+  - name: side_y-_r0
+    T:
+      - [0.0, 1.0, 0.0, 0.0]
+      - [-1.0, 0.0, 0.0, 0.200]
+      - [0.0, 0.0, 1.0, 0.0]
+      - [0.0, 0.0, 0.0, 1.0]
+  - name: side_y-_r180
+    T:
+      - [0.0, -1.0, 0.0, 0.0]
+      - [-1.0, 0.0, 0.0, 0.200]
+      - [0.0, 0.0, -1.0, 0.0]
+      - [0.0, 0.0, 0.0, 1.0]
+  - name: top_r0
+    T:
+      - [0.0, -1.0, 0.0, 0.0]
+      - [0.0, 0.0, 1.0, 0.0]
+      - [-1.0, 0.0, 0.0, 0.200]
+      - [0.0, 0.0, 0.0, 1.0]
+  - name: top_r180
+    T:
+      - [0.0, 1.0, 0.0, 0.0]
+      - [0.0, 0.0, -1.0, 0.0]
+      - [-1.0, 0.0, 0.0, 0.200]
+      - [0.0, 0.0, 0.0, 1.0]
+  - name: bottom_r0
+    T:
+      - [0.0, 1.0, 0.0, 0.0]
+      - [0.0, 0.0, 1.0, 0.0]
+      - [1.0, 0.0, 0.0, -0.200]
+      - [0.0, 0.0, 0.0, 1.0]
+  - name: bottom_r180
+    T:
+      - [0.0, -1.0, 0.0, 0.0]
+      - [0.0, 0.0, -1.0, 0.0]
+      - [1.0, 0.0, 0.0, -0.200]
+      - [0.0, 0.0, 0.0, 1.0]
+
+# PART pose at insertion (part frame in world): hovering just above the PCB
+# center, long axis along world x. Insertion success = B reaches this
+# collision-free; no contact simulation. PLACEHOLDER.
+T_world_insert:
+  - [1.0, 0.0, 0.0, 0.450]
+  - [0.0, 1.0, 0.0, -0.350]
+  - [0.0, 0.0, 1.0, 0.315] # pcb top 0.2908 + part half-height + hover
+  - [0.0, 0.0, 0.0, 1.0]
+
+# Handoff search: part-position grid (min, max, step) in the dual-reach
+# region between the arms, and part orientations (roll-pitch-yaw, degrees).
+# Grid shifted toward B: with the 200 mm TCP, A's flange sits 0.2 m behind
+# the part along its approach — presenting too close to A's base folds the
+# arm into self-collision.
+# z window sized for B's top grasp: B's flange sits 0.2 m ABOVE the part,
+# and (part z + 0.2) must stay well inside B's 0.927 m reach sphere.
+handoff_search:
+  x: [0.40, 0.65, 0.0625]
+  y: [-0.10, 0.10, 0.10]
+  z: [0.45, 0.70, 0.0625]
+  orientations_rpy_deg: # part orientation R_h candidates at handoff
+    - [0, 0, 0]
+    - [90, 0, 0]
+    - [180, 0, 0]
+    - [270, 0, 0]
+    - [0, 0, 45]
+    - [0, 0, -45]
+    - [90, 0, 45]
+    - [90, 0, -45]
+  joint_limit_margin: 0.09 # rad (~5 deg), doc's m_jl
+  ik_restarts: 8
+  n_path_waypoints: 4
+  singularity_w_percentile: 5.0 # w_min = this percentile of manipulability
+                                # over random reachable configs (doc G3)
+  approach: # checked approach/retreat segments (doc G4/G6, §5)
+    d_pre: 0.040     # pre-present / pre-grasp back-off along the tool axis (m)
+    d_retreat: 0.060 # A's retreat after release (m)
+    d_app: 0.030     # pre-insert hover above the insert pose (m)
+    n_sweep: 3       # interpolated collision checks per segment
+
+# Part self-symmetry (doc §0): rotations (rpy deg, part frame) that map the
+# part onto itself; every grasp is expanded by this orbit for free
+# feasibility. DEFINE PER PART — and use the symmetry of the PIN PATTERN,
+# not the body (a wrong symmetry inserts the part misoriented!).
+# The 1x11 right-angle pin header has NO rotational symmetry -> empty.
+part_symmetry_rpy_deg: []
+# Example for a rotationally symmetric part (radial capacitor about its z):
+#part_symmetry_rpy_deg:
+#  - [0, 0, 90]
+#  - [0, 0, 180]
+#  - [0, 0, 270]
+
+# joint_limits: per-robot overrides (defaults pulled from URDF)
