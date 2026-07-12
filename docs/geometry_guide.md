@@ -1,5 +1,9 @@
 # Geometry Guide — Models, Constraints, and How to Change Them
 
+> **Legacy PyBullet guide.** Its bbox/axis grasps, decimated visuals, and
+> `config/cell.yaml` contract do not apply to the current MuJoCo pipeline. See
+> [mujoco_handoff_pipeline.md](mujoco_handoff_pipeline.md).
+
 What geometric models the system needs, exactly how each is used, every
 geometric constraint baked into the planner, and step-by-step recipes for
 swapping the part, the gripper, the robots, or the workcell.

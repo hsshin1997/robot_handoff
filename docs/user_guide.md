@@ -1,5 +1,10 @@
 # Handoff Simulation — User Guide
 
+> **Legacy PyBullet guide.** This document describes the earlier prototype and
+> is not the current MuJoCo workflow. Use
+> [mujoco_handoff_pipeline.md](mujoco_handoff_pipeline.md) and
+> [mujoco_setup.md](mujoco_setup.md) for the implemented system.
+
 Everything needed to configure, run, test, and extend the dual-GP7 part
 handoff simulation. Companion docs: `handoff_pipeline_detailed.md` (the math),
 `rl_training.md` (the optional learned proposer).

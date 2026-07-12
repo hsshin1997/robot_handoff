@@ -1,5 +1,9 @@
 # RL Handoff Policy — Technical Details & Training Guide
 
+> **Legacy PyBullet experiment.** The current MuJoCo safety architecture limits
+> learning to proposal/ranking behind deterministic feasibility gates; see the
+> learning section in [mujoco_handoff_pipeline.md](mujoco_handoff_pipeline.md).
+
 How the learned handoff proposer works, why it is built this way, how to
 train it, and what changes when the part, gripper, or cell changes.
 

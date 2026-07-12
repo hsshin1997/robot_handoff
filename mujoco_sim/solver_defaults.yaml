@@ -1,0 +1,84 @@
+# System-owned defaults. These are scale-aware numerical/safety policies, not
+# part-specific user tuning. A deployed hardware profile may override them.
+schema_version: 1
+geometry:
+  surface_samples: 800
+  approaches_per_pair: 4
+  max_grasp_candidates: 128
+  antipodal_normal_tolerance_deg: 20.0
+  contact_alignment_tolerance_deg: 25.0
+  grasp_dedup_translation_fraction: 0.03
+  grasp_dedup_rotation_deg: 8.0
+  convex_component_limit: 128
+  # Reject COM projections too close to a support-polygon edge. This is a
+  # system safety policy scaled by the prepared part-mesh diagonal.
+  minimum_support_margin_mesh_fraction: 0.005
+planning:
+  ik_restarts: 18
+  ik_max_solutions: 8
+  ik_position_tolerance_m: 0.0007
+  ik_rotation_tolerance_deg: 0.35
+  singularity_percentile: 3.0
+  joint_limit_margin_deg: 5.0
+  joint_limit_margin_fraction: 0.025
+  collision_margin_mesh_fraction: 0.002
+  minimum_clearance_m: 0.005
+  # Positive swept-path buffer used for every non-authorized geom pair. The
+  # larger handoff clearance below also includes calibration uncertainty.
+  swept_path_clearance_m: 0.0005
+  calibration_translation_3sigma_m: 0.0015
+  calibration_rotation_3sigma_deg: 0.3
+  approach_separation_deg: 60.0
+  edge_max_joint_step_rad: 0.035
+  handoff_position_resolution_m: 0.040
+  handoff_candidate_limit: 1000
+  prehandoff_distance_m: 0.040
+  retreat_distance_m: 0.060
+  rrt_time_budget_s: 1.0
+  rrt_node_budget: 3000
+  direct_first: true
+  max_reorientation_hops: 2
+  reorientation_yaw_samples: 16
+  reorientation_goal_grasp_limit: 16
+  # Online stops after the first insertion-valid goal. Offline qualification
+  # may enumerate all candidates to improve robustness/cycle-time ranking.
+  reorientation_direct_goal_limit: 1
+  reorientation_enabled: true
+  wrist_dither_deg: 3.0
+  correction:
+    lateral_m: 0.002
+    axial_m: 0.001
+    yaw_deg: 3.0
+    max_joint_gain: 40.0
+    min_sigma: 0.015
+  uncertainty:
+    grasp_translation_sigma_m: 0.00020
+    grasp_rotation_sigma_deg: 0.50
+    robot_to_robot_translation_sigma_m: 0.00017
+    robot_to_robot_rotation_sigma_deg: 0.033
+    capture_translation_half_width_m: [0.003, 0.003, 0.005]
+    capture_rotation_half_width_deg: [2.0, 2.0, 3.0]
+  score_weights:
+    manipulability: 1.0
+    joint_margin: 0.5
+    clearance: 0.3
+    reorientation: 0.5
+    cycle: 0.2
+insertion:
+  # System motion primitive distance. The direction comes from each hole's
+  # semantic +Z axis; it is never assumed to be world +Z.
+  approach_distance_m: 0.040
+offline:
+  cache_dir: mujoco_sim/cache
+  reachability_samples: 100000
+  voxel_fraction_of_reach: 0.04
+  coverage_required: 1.0
+execution:
+  collision_check_every_step: true
+  stop_on_unexpected_contact: true
+  speed_fraction: 0.25
+  approach_speed_fraction: 0.10
+  insertion_speed_fraction: 0.05
+  co_grasp_dwell_s: 0.20
+  force_guard_n: 15.0
+  expected_aperture_tolerance_m: 0.002

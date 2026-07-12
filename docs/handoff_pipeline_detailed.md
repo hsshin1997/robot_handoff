@@ -1,342 +1,809 @@
-# Downstream-Constrained Dual-Robot Handoff: Detailed Pipeline with Math
+# Downstream-constrained dual-robot handoff: mathematics and methodology
 
-## 0. Notation and coordinate frames
+This document defines the implemented planning method independently of the
+current connector example. The executable workflow, commands, cache timings,
+and present simulation limitations are summarized in
+[mujoco_handoff_pipeline.md](mujoco_handoff_pipeline.md).
 
-All poses are elements of SE(3), written as homogeneous transforms
+The current task assumes the startup part pose is known. In-gripper pose
+estimation is therefore outside this implementation: the caller supplies
+$^{W}T_P^{start}$, or the equivalent startup TCP-to-part transform together
+with robot FK. All other stages—geometry grasps, downstream filtering, direct
+handoff, stable placement, reorientation, motion validation, execution
+monitoring, and coverage accounting—remain active.
+
+## 0. Scope and input contract
+
+The method separates physical/task facts from solver policy.
+
+The user-owned `project.yaml` supplies:
+
+- articulated robot URDF/MJCF assets and calibrated base transforms;
+- reusable gripper asset and flange/TCP semantics;
+- workstation visual and collision CAD;
+- part CAD, mass, and the part-to-pin feature transform;
+- a known initial part/grasp state;
+- the finite source for offline admissible initial-grasp classes;
+- bounded handoff, scanner, reorientation, and insertion regions; and
+- PCB pose plus PCB-to-hole feature transforms.
+
+The system-owned `solver_defaults.yaml` supplies sampling budgets, numerical
+tolerances, uncertainty/clearance policy, motion-planning bounds, and execution
+interlocks. These are versioned system policies, not part-specific rules.
+`pipeline_config.yaml` and `grasp_config.yaml` are migration tombstones. The
+planner does not read them, and they must not become new tuning surfaces.
+
+A robot or gripper cannot be reconstructed from unstructured CAD alone.
+Articulation requires bodies, joints, axes, limits, and collision/contact
+semantics in URDF/MJCF or an equivalent descriptor. STEP/STL/OBJ supplies shape,
+not kinematics.
+
+The reference executable currently has a dual-GP7 scene/kinematics adapter and
+a static-gripper scene adapter. The geometry/task-graph interfaces are reusable,
+but a different robot or articulated gripper needs its corresponding adapter;
+changing only a manifest asset path is not yet an end-to-end robot conversion.
+
+## 1. Frames, transforms, and perturbations
+
+Every pose is an element of $SE(3)$:
 
 $$
-T = \begin{bmatrix} R & t \\ 0 & 1 \end{bmatrix}, \quad R \in SO(3),\ t \in \mathbb{R}^3 .
+T = \begin{bmatrix} R & t \\ 0 & 1 \end{bmatrix},
+\qquad R\in SO(3),\ t\in\mathbb R^3.
 $$
 
-We write $^{X}T_{Y}$ for the pose of frame $Y$ expressed in frame $X$. The relevant frames:
+$^{X}T_Y$ maps coordinates expressed in frame $Y$ into frame $X$. Relevant
+frames are:
 
-| Symbol | Frame |
+| Symbol | Meaning |
 |---|---|
-| $W$ | World / cell frame |
-| $A_0, B_0$ | Robot A / B base frames |
-| $E_A, E_B$ | Robot A / B TCP (flange→tool already folded in) |
-| $P$ | Part frame (CAD origin) |
-| $S$ | Scanner frame |
+| $W$ | calibrated world/cell frame |
+| $A_0,B_0$ | robot base frames |
+| $E_A,E_B$ | robot TCP frames |
+| $P$ | native part CAD frame |
+| $F$ | functional part pin frame |
 | $C$ | PCB frame |
-| $N$ | Reorientation nest / flat surface frame |
+| $H_k$ | hole frame for insertion target $k$ |
+| $N$ | reorientation support frame |
 
-Calibration gives the static transforms $^{W}T_{A_0}$, $^{W}T_{B_0}$, $^{B_0}T_{S}$, $^{B_0}T_{C}$, $^{A_0}T_{N}$. The robot-to-robot calibration is the composition $^{A_0}T_{B_0} = ({^{W}T_{A_0}})^{-1}\, {^{W}T_{B_0}}$ and its error budget propagates directly into handoff clearance — keep it under ~0.5 mm / 0.1° for gripper-to-gripper transfer of small parts.
-
-Forward kinematics: $^{A_0}T_{E_A} = f_A(q_A)$, $q_A \in \mathbb{R}^{6}$, similarly for B. Manipulator Jacobian $J(q) \in \mathbb{R}^{6\times 6}$ maps $\dot q \mapsto (v, \omega)$.
-
-**Grasp definition.** A grasp $g$ on the part is a fixed transform from part frame to TCP frame:
+Robot FK is $^{R_0}T_E=f_R(q_R)$. World FK is
 
 $$
-g \equiv {^{P}T_{E}} \in SE(3),
+{}^W T_E = {}^W T_{R_0}\,f_R(q_R).
 $$
 
-so that if the part is at world pose $X = {^{W}T_{P}}$ and held with grasp $g$, the TCP must be at
+Twists and pose errors are ordered $(v,\omega)$: translation first, rotation
+second. The implementation uses spatial/left perturbations when transporting
+covariance. For $T=\exp(\xi^\wedge)\bar T$ and a left composition $Y=AT$,
 
 $$
-{^{W}T_{E}} = X \, g .
+\Sigma_Y=\operatorname{Ad}_A\Sigma_T\operatorname{Ad}_A^\top,
+\qquad
+\operatorname{Ad}_A=
+\begin{bmatrix}R &[t]_\times R\\0&R\end{bmatrix}.
 $$
 
-Each robot has a finite grasp set defined offline in the CAD frame: $\mathcal{G}_A = \{g_A^{(1)}, \dots\}$, $\mathcal{G}_B = \{g_B^{(1)}, \dots\}$. For parts with symmetry group $\mathcal{S} \subset SO(3)$ (e.g., a relay with 180° body symmetry), every grasp expands to the orbit $\{g \cdot \sigma : \sigma \in \mathcal{S}\}$ — exploit this, it can double or quadruple the feasible set for free. (If the pin pattern breaks the symmetry, restrict $\mathcal{S}$ to symmetries of the *pin pattern*, not the body.)
+Metres and radians are not combined in an unscaled norm. The insertion
+correction test uses a 0.10 m characteristic length for angular error.
 
----
+### 1.1 Grasp convention
 
-## 1. Problem statement, formally
-
-At handoff time, Robot A holds the part with (measured) grasp $\hat g_A$, and the part must end up in Robot B's gripper with some grasp $g_B \in \mathcal{G}_B$ such that B can complete the downstream sequence. A **handoff candidate** is a tuple
-
-$$
-h = (X_h,\ g_A,\ g_B), \qquad X_h = {^{W}T_{P}^{\,\text{handoff}}} \in SE(3),
-$$
-
-i.e., a world pose of the part at the transfer instant plus the two grasps. It induces required TCP poses
+A grasp is the pose of TCP $E$ in the part frame:
 
 $$
-{^{W}T_{E_A}} = X_h\, g_A, \qquad {^{W}T_{E_B}} = X_h\, g_B .
+\boxed{g\equiv{}^P T_E}.
 $$
 
-The downstream task for B is a sequence of required **part** poses: the scanner presentation pose $X_{scan} = {^{W}T_{B_0}}\, {^{B_0}T_S}\, {^{S}T_P^{\,\text{present}}}$ and the insertion poses $\{X_{ins}^{(k)}\}_{k=1..K}$, one per PCB hole/placement, plus pre-insertion approach poses $X_{app}^{(k)} = X_{ins}^{(k)} \cdot \text{Trans}(0,0,-d_{app})$ along the insertion axis. Because the grasp is rigid during the whole downstream phase, every task pose maps to a TCP pose through the **same** $g_B$:
+For part world pose $X={}^W T_P$,
 
 $$
-{^{W}T_{E_B}^{\,task}} = X_{task}\, g_B .
+{}^W T_E=Xg.
 $$
 
-This is the crux: **choosing $(X_h, g_B)$ fixes B's entire downstream TCP trajectory family.** The handoff problem is therefore:
+With a known initial part pose and measured/current robot joints,
 
 $$
-\begin{aligned}
-\max_{h = (X_h, g_A, g_B)} \quad & \Phi(h) \\
-\text{s.t.} \quad
-& \exists\, q_A:\ f_A(q_A) = {^{A_0}T_W}\, X_h\, g_A,\ q_A \in \mathcal{Q}_A^{free} \\
-& \exists\, q_B:\ f_B(q_B) = {^{B_0}T_W}\, X_h\, g_B,\ q_B \in \mathcal{Q}_B^{free} \\
-& \text{Feas}_B(g_B, X_{scan}) \wedge \bigwedge_k \text{Feas}_B(g_B, X_{ins}^{(k)}, X_{app}^{(k)}) \\
-& \text{CoGraspClearance}(X_h, g_A, g_B) \geq \delta_{min} \\
-& \text{path-connected: collision-free trajectories exist between all waypoints}
-\end{aligned}
+\boxed{g_A^{start}=(X^{start})^{-1}
+{}^W T_{E_A}(q_A^{start})}.
 $$
 
-where $\mathcal{Q}^{free}$ denotes joint-limit-satisfying, collision-free configurations and $\Phi$ is the quality score defined in §4.
+The project manifest may store the inverse $^{E}T_P$ because that is often the
+measurement/calibration convention; it is inverted once at the boundary.
 
----
+### 1.2 Symmetry action
 
-## 2. Stage 1 — In-gripper part pose estimation
-
-The nominal grasp $g_A^{nom}$ is corrupted by pick error (part shifted in the pile, jaw closing dynamics). Model the true grasp as
-
-$$
-\hat g_A = g_A^{nom} \cdot \exp(\hat\xi^{\wedge}), \qquad \hat\xi \in \mathbb{R}^6,\ \hat\xi \sim \mathcal{N}(0, \Sigma_g),
-$$
-
-with $\exp: \mathfrak{se}(3) \to SE(3)$ the exponential map and $\xi = (\rho, \phi)$ the translation/rotation twist. Estimate $\hat\xi$ by one of:
-
-1. **Mechanical determinism** (baseline): form-fitting fingers + hard stop ⇒ $\Sigma_g$ small enough (< 0.2 mm / 0.5°) to skip measurement. Validate once with a scan.
-2. **Quick-look camera** (upgrade): Robot A presents the gripped part to a 2D/3D camera; run PPF+ICP restricted to $SE(3)$ perturbations near $g_A^{nom}$ (a local, seeded registration — fast and unambiguous).
-3. **Full scanner re-measure** after handoff (this always happens anyway at B's scanner station and corrects residual error before insertion; the handoff planner only needs $\hat g_A$ accurate to ~1 mm / 2° so the grippers don't fight each other).
-
-Propagate uncertainty through frame composition with the adjoint: if $Y = T X$ and $X$ has covariance $\Sigma_X$ in its local tangent space, then $\Sigma_Y = \mathrm{Ad}_T\, \Sigma_X\, \mathrm{Ad}_T^{\top}$, where
+For `g = ^P T_E`, a part-frame symmetry acts on the left. If $S$ maps a grasp
+contact set to its symmetric copy in the chosen part-frame convention,
 
 $$
-\mathrm{Ad}_T = \begin{bmatrix} R & [t]_\times R \\ 0 & R \end{bmatrix} \in \mathbb{R}^{6\times 6}.
+g' = Sg.
 $$
 
-Use this to convert grasp covariance into gripper-to-gripper misalignment covariance at the handoff pose and check it against the receiver jaw's capture region (chamfer / compliance funnel) — exactly analogous to a peg-in-hole clearance test.
+If the stored $S$ instead maps the relabeled frame in the inverse direction,
+use $S^{-1}g$. The essential rule is left action. The former expression
+$gS$ is wrong: it rotates about the TCP and changes a different frame.
+Only symmetries of the functional pin pattern are admissible; a visually
+symmetric body with an asymmetric pin pattern is not task-symmetric.
 
----
+## 2. CAD preprocessing and collision representation
 
-## 3. Stage 2 — Candidate generation
+Visual CAD is preprocessed deterministically.
 
-### 3.1 Handoff pose parameterization
+- STL is normalized to binary STL with every triangle preserved.
+- A large STL is split below MuJoCo's per-asset face limit without decimation,
+  welding, simplification, or reordering.
+- OBJ is preserved byte-for-byte.
+- STEP/STP is tessellated by FreeCAD with explicit deflection settings, after
+  which every tessellated triangle is preserved.
 
-Decompose $X_h = (t_h, R_h)$. Restrict the search:
+This is exact polygon preservation, not analytic STEP/B-rep collision.
 
-- **Position** $t_h \in \mathcal{V}$ — the *dual-reachability volume*, precomputed as the intersection of both robots' reachability maps (§3.2). Typically a lens-shaped region between the two bases. Discretize at 2–5 cm.
-- **Orientation** $R_h$ — sample from a deterministic $SO(3)$ grid (e.g., 60–576 rotations via HEALPix/icosahedral sampling), or, much better, sample **task-informed orientations**: since $X_{ins}$ requires pins-down, prefer $R_h$ within a bounded geodesic distance of the orientation that minimizes B's reorientation:
+MuJoCo does not load STEP directly. The preprocessing index records the
+generated STL chunks that a scene compiler must reference. The reference scene
+builder now invokes this preparation automatically and emits MJCF references to
+those chunks. `FreeCADCmd`/`freecadcmd` must be discoverable for a cold STEP
+build; an explicit standalone preparation can prewarm the same content cache.
 
-$$
-d_{SO(3)}(R_h, R_{ins}) = \left\| \log\!\left(R_h^{\top} R_{ins}\right)^{\vee} \right\| \leq \theta_{max}.
-$$
+Visual and collision models are intentionally distinct. MuJoCo collision for a
+mesh geom uses its convex hull. Concave CAD must therefore be represented by
+primitives or separate convex pieces. A connected-component split is not a
+general convex decomposition, although it is still safer than replacing a
+multi-body tool with one coarse palm box.
 
-In practice a horizontal "part presented sideways at chest height between the robots" band covers most industrial cases; the grid just formalizes it.
+The current static gripper STL contains eight connected surface components.
+All eight are loaded for each gripper's collision checks. They are fixed to one
+body and each has convex-hull contact. Consequently the model can reject
+gripper-to-gripper and gripper-to-robot overlap, but cannot simulate finger
+motion or certify pad capture.
 
-### 3.2 Reachability map precomputation (offline, per robot)
+## 3. Geometry-derived parallel-jaw grasp library
 
-For robot $R \in \{A, B\}$, sample joint space (or sample TCP poses and run IK), and build a voxel map over $(x, y, z)$ with, per voxel, a set of discretized approach directions and a scalar quality:
-
-$$
-M_R(v, \hat n) = \max_{q\,:\, f_R(q) \in v,\ \hat z_{TCP}(q) \approx \hat n} \; w(q)\, P_{jl}(q),
-$$
-
-where $w(q)$ is Yoshikawa manipulability and $P_{jl}$ the joint-limit penalty (both defined in §4). Store as a dense array; queries are O(1).
-
-Also precompute **B's downstream feasibility as a function of $g_B$ alone**. Since $X_{scan}$ and $X_{ins}^{(k)}$ are fixed cell poses, for each $g_B \in \mathcal{G}_B$:
-
-$$
-Q_{down}(g_B) = \min\Big( \tilde w\big(X_{scan}\, g_B\big),\ \min_k \tilde w\big(X_{ins}^{(k)}\, g_B\big),\ \min_k \tilde w\big(X_{app}^{(k)}\, g_B\big) \Big),
-$$
-
-where $\tilde w(\cdot)$ is the best penalized manipulability over the full IK solution set at that TCP pose (with full collision checking).
-
-**This is the single biggest computational win in the whole pipeline**: the downstream feasibility of a receiver grasp $g_B$ does not depend on the handoff pose at all — it depends only on $g_B$. So you filter $\mathcal{G}_B$ down to a *downstream-feasible grasp subset*
-
-$$
-\mathcal{G}_B^{\star} = \{\, g_B : Q_{down}(g_B) > \epsilon \,\}
-$$
-
-**once, offline**, and the online problem shrinks to: find $(X_h, g_A, g_B \in \mathcal{G}_B^{\star})$ jointly reachable.
-
-(Caveat: if PCB placements vary board-to-board, precompute $Q_{down}$ over the hole-pose envelope, or refresh it when a new board program loads.)
-
-### 3.3 Grasp-pair compatibility
-
-Not every $(g_A, g_B)$ pair works: the two grippers must not collide while co-grasping. Precompute a compatibility matrix
+No part axes, center point, approach rolls, or per-part aperture are specified.
+Let the triangulated part surface be $\mathcal M$ and let a reusable gripper
+capability contain
 
 $$
-\mathcal{C}[i,j] = \mathbb{1}\!\left[\ \mathrm{dist}\big(\mathcal{B}_{grip_A}(g_A^{(i)}),\ \mathcal{B}_{grip_B}(g_B^{(j)})\big) \geq \delta_{min}\ \right],
+d_{min},\ d_{max},\quad
+(w_{pad},h_{pad}),\quad l_{finger},\quad \mu.
 $$
 
-where $\mathcal{B}_{grip}(g)$ is the gripper body volume posed on the part via $g$, and $\delta_{min}$ ≈ 5–10 mm **plus** the 3σ gripper-to-gripper misalignment from §2. Also require **approach/retreat cone separation**: A's retreat direction $\hat r_A$ and B's approach direction $\hat a_B$ should satisfy $\hat r_A \cdot \hat a_B \leq \cos\theta_{sep}$ (grippers depart/arrive without crossing) — typically opposing or orthogonal faces of the part.
+The implemented deterministic generator:
 
-The candidate set is then
+1. samples points on $\mathcal M$ with strata proportional to triangle area;
+2. at sample $p_0$ with outward normal $n_0$, casts a ray along $-n_0$;
+3. uses the first opposing hit $(p_1,n_1)$;
+4. validates antipodal/friction-cone geometry and aperture;
+5. derives roll about the closing line from surface covariance;
+6. estimates pad support and palm/finger-depth clearance; and
+7. ranks, SE(3)-deduplicates, and applies a coverage term so elongated parts
+   retain grasps at spatially distinct locations.
 
-$$
-\mathcal{H} = \Big\{ (X_h, g_A^{(i)}, g_B^{(j)}) : X_h \in \text{grid},\ g_A^{(i)} \in \mathcal{G}_A^{reach}(\hat g_A),\ g_B^{(j)} \in \mathcal{G}_B^{\star},\ \mathcal{C}[i,j]=1 \Big\}.
-$$
-
-Note $\mathcal{G}_A^{reach}(\hat g_A)$: in the **direct** handoff branch, Robot A cannot change its grasp — $g_A = \hat g_A$ is whatever came out of the bin. Only the regrasp branch (§6) re-opens the choice of $g_A$.
-
----
-
-## 4. Stage 3 — Feasibility filtering and scoring
-
-Process candidates coarse-to-fine; each test is strictly cheaper than the next.
-
-### 4.1 Hard gates (in order)
-
-**(G1) Map lookup.** $M_A(t_h, \hat n_A) > 0$ and $M_B(t_h, \hat n_B) > 0$ with the approach directions implied by $g_A, g_B$. O(1); kills ~90% of the grid.
-
-**(G2) Exact IK.** Solve $f_A(q_A) = {^{A_0}T_W}\, X_h\, g_A$ and $f_B(q_B) = {^{B_0}T_W}\, X_h\, g_B$. For 6-DOF industrial arms with spherical-ish wrists (GP7 class), use the analytic IK (up to 8 branches each); enumerate **all** branches, don't take the first.
-
-**(G3) Joint limits & singularity.** For every surviving branch pair, require
+Define
 
 $$
-q_i \in [q_i^{min} + m_{jl},\ q_i^{max} - m_{jl}] \ \ \forall i, \qquad w(q) = \sqrt{\det\!\big(J(q)J(q)^{\top}\big)} = \prod_i \sigma_i(J) \geq w_{min},
+c=\frac{p_1-p_0}{\lVert p_1-p_0\rVert},
+\qquad d=\lVert p_1-p_0\rVert,
+\qquad \alpha=\tan^{-1}\mu.
 $$
 
-with margin $m_{jl}$ ≈ 5–10° and $w_{min}$ calibrated per robot (as a percentile of the reachability map's $w$ distribution — absolute values of $w$ are not comparable across robots or units).
-
-**(G4) Collision.** Full FCL/Bullet check of both arms + grippers + part + cell at the co-grasp configuration $(q_A, q_B)$, plus swept-volume checks along A's approach-to-handoff and B's approach-to-handoff segments.
-
-**(G5) Correction margin at insertion** (the subtle one). It is not enough that $X_{ins}^{(k)}$ has an IK solution — the force-guided search will command perturbations $\delta x \in \mathcal{E}$ (e.g., ±2 mm lateral, ±3° about the pin axis) around it. First-order test: for the chosen IK branch $q^{ins}$,
+The hard contact tests are
 
 $$
-\delta q = J^{+}(q^{ins})\, \delta x, \qquad \text{require } q^{ins} + \delta q \in \mathcal{Q}^{lim} \ \text{ and } \ \|\delta q\| \leq \kappa \|\delta x\|
+d_{min}\le d\le d_{max},
+\qquad n_0^\top(-c)\ge\cos\alpha,
+\qquad n_1^\top c\ge\cos\alpha.
 $$
 
-for all vertices $\delta x$ of the correction polytope $\mathcal{E}$ (8–16 vertices suffice). The gain bound $\kappa$ rejects near-singular branches where tiny Cartesian corrections demand large joint motion (equivalently, require $\sigma_{min}(J) \geq \sigma_0$). A more exact version solves IK at each perturbed pose and requires **branch continuity** (no IK-branch flip inside $\mathcal{E}$). Fold this test into $Q_{down}(g_B)$ offline — it is a property of $g_B$, not of $X_h$.
-
-**(G6) Path existence.** Plan (or table-lookup) collision-free trajectories: A: current → handoff; B: home → handoff → scanner → PCB. At the library/production tier, pre-plan and cache these per ($X_h$-cell, $g_B$); online planning (RRT-Connect) is the fallback.
-
-### 4.2 Soft score
-
-For survivors, compute
+For a chosen approach direction $a\perp c$, construct
 
 $$
-\Phi(h) = \lambda_1\, \Phi_{manip} + \lambda_2\, \Phi_{jl} + \lambda_3\, \Phi_{clear} - \lambda_4\, \Phi_{reorient} - \lambda_5\, \Phi_{cycle}
+y_E=c,\qquad z_E=a,\qquad x_E=c\times a,
+$$
+
+and
+
+$$
+g={}^P T_E=
+\begin{bmatrix}
+x_E&y_E&z_E&\frac12(p_0+p_1)\\
+0&0&0&1
+\end{bmatrix}.
+$$
+
+Thus `+E_Y` is the jaw-closing line, `+E_Z` is palm-to-contact approach, and
+the required opening is $d$. A downstream planner receives both contacts,
+normals, required aperture, directions, and quality terms; it never needs to
+infer them from a part name.
+
+Antipodality is necessary but not sufficient. Robot IK, the complete gripper
+geometry, part collision, environment collision, co-grasp contact-patch
+separation, and approach/retreat paths remain hard gates.
+
+### 3.1 Static and articulated aperture truth
+
+For an articulated gripper, prismatic/slide joint limits define the aperture
+range and the requested $d$ maps to coordinated joint positions. For a static
+STL, declared manufacturer capability can filter candidates but does not create
+motion. The current static model therefore uses virtual close/capture and weld
+ownership; it is not physically certifiable.
+
+## 4. Functional insertion targets
+
+The user supplies a part pin feature $^{P}T_F$, a PCB pose $^{W}T_C$, and each
+hole feature $^{C}T_{H_k}$. Insertion aligns the feature frames:
+
+$$
+{}^W T_P^{ins,k}\,{}^P T_F
+= {}^W T_C\,{}^C T_{H_k}.
+$$
+
+Therefore
+
+$$
+\boxed{{}^W T_P^{ins,k}
+= {}^W T_C\,{}^C T_{H_k}\,({}^P T_F)^{-1}}.
+$$
+
+This equation replaces per-part hard-coded insertion world poses.
+
+Let
+
+$$
+{}^W T_{H_k}={}^W T_C{}^C T_{H_k},
+\qquad a_k={}^W R_{H_k}e_z,
+$$
+
+where hole `+Z` is defined to point into the hole. The pre-insertion pose keeps
+the insertion orientation and moves opposite the physical hole axis:
+
+$$
+R_P^{pre,k}=R_P^{ins,k},
+\qquad
+t_P^{pre,k}=t_P^{ins,k}-d_{app}a_k.
+$$
+
+The former shortcut $X_{ins}\operatorname{Trans}(0,0,-d)$ is not generally
+correct because it offsets along a part-frame axis, which need not equal the
+hole axis.
+
+Both $t_P^{pre,k}$ and $t_P^{ins,k}$ must lie inside the manifest-declared
+insertion region. This is a task-space admissibility bound, not a replacement
+for the pin/hole frame equality or collision checking.
+
+### 4.1 Axis-relative correction envelope
+
+For a correction vertex
+$\delta p_H=(\delta x,\delta y,\delta z)$ and hole-axis yaw $\delta\psi$,
+
+$$
+t'_P=t_P^{ins}+{}^W R_H\delta p_H,
+$$
+
+$$
+R'_P=\exp([a_H]_\times\delta\psi)R_P^{ins}.
+$$
+
+The current four-dimensional box has positive/negative lateral, axial, and yaw
+limits, producing $2^4=16$ vertices. It is relative to each configured hole,
+not world `Z`.
+
+At nominal insertion joint state $q^{ins}$, a first-order gain screen uses
+
+$$
+\delta q=J^+(q^{ins})\delta x,
+$$
+
+but acceptance also requires seeded IK at every exact perturbed pose, the same
+joint/singularity gates, and branch continuity. Wrist dither is reserved in the
+joint-6 margin.
+
+## 5. Downstream factorization
+
+For receiver grasp $g_B$, all downstream TCP targets are fixed:
+
+$$
+{}^W T_{E_B}^{task}={}^W T_P^{task}g_B.
+$$
+
+Therefore scanner and insertion feasibility depends on $g_B$ and the fixed
+task/cell model, not on the handoff pose. Define
+
+$$
+\mathcal G_B^*=
+\{g_B:\operatorname{DownstreamFeasible}(g_B)\}.
+$$
+
+`DownstreamFeasible` requires:
+
+- scanner IK and margins;
+- pre-insertion and insertion IK at every hole;
+- wrist-dither reserve;
+- all 16 correction vertices with branch-continuous IK;
+- scanner-to-preinsert and insertion motion paths;
+- collision policy compliance; and
+- a minimum singular value/manipulability witness.
+
+This entire witness is content-addressed and cached. On the reference connector
+project, 23 of the 128 generated receiver grasps currently survive. The online
+handoff loop considers only those 23.
+
+The scanner currently uses a system-derived presentation orientation based on
+the first insertion target and a position inside the declared scanner region.
+A future sensor-specific presentation constraint can become another semantic
+feature/region input without changing the grasp convention.
+
+## 6. Direct handoff problem
+
+At transfer, A cannot change its measured grasp. A direct candidate is
+
+$$
+h=(X_h,g_A^{start},g_B),
+\qquad X_h={}^W T_P^{handoff},
+\qquad g_B\in\mathcal G_B^*.
+$$
+
+It induces
+
+$$
+{}^W T_{E_A}=X_hg_A^{start},
+\qquad
+{}^W T_{E_B}=X_hg_B.
+$$
+
+$X_h$ is sampled only inside the user-declared handoff region. Position
+resolution, orientation family, and candidate count are system solver policy.
+The current deterministic orientation family is task-informed from insertion
+orientation rather than a part-name rule.
+
+### 6.1 Coarse-to-fine hard gates
+
+The implemented order is:
+
+**G1 — reachability.** Query each induced TCP pose in its robot base frame:
+
+$$
+\boxed{{}^{R_0}T_E
+=({}^W T_{R_0})^{-1}X_hg_R}.
+$$
+
+Querying only $X_h$'s part origin is mathematically wrong. Optional reachability
+maps provide an O(1) rejector; exact IK remains authoritative. A conservative
+reach-sphere fallback prevents sparse-map false negatives in the present
+prototype.
+
+**G2 — exact verified IK.** Solve all requested TCP poses. The current GP7
+solver uses deterministic multi-seed numerical IK and verifies every solution
+with FK position/orientation tolerances. It is not analytically branch-complete.
+
+**G3 — joint and singularity margins.** Require
+
+$$
+q_i^{min}+m_i\le q_i\le q_i^{max}-m_i,
+$$
+
+and calibrated manipulability/singular-value thresholds. Yoshikawa
+manipulability is
+
+$$
+w(q)=\sqrt{\det(JJ^\top)}=\prod_i\sigma_i(J),
+$$
+
+but its absolute magnitude is unit/model dependent; thresholds are calibrated
+per robot rather than copied across assets.
+
+**G4 — co-grasp and collision.** Reject overlapping occupied contact patches,
+then check the complete MuJoCo state: both robots, all gripper collision
+components, part, workstation, and fixtures. Exact component collision is
+authoritative; a contact-patch heuristic can reject early but never accept.
+Clearance includes the configured calibration 3-sigma allowance.
+
+**G5 — downstream correction.** This is already folded into the cached
+$\mathcal G_B^*$ witness and includes exact axis-relative vertices and branch
+continuity.
+
+**G6 — path existence.** Validate A current-to-pre-handoff, A approach, B
+current-to-pre-handoff, B approach, A retreat, and B-to-scanner, plus cached
+downstream paths. Every segment uses the correct held/fixed part state.
+
+### 6.2 Direct-first latency path
+
+The low-latency search first tries branch-continuous warm-start IK over the
+bounded grid and returns the first candidate passing every gate. If warm starts
+fail, complete configured multi-seed enumeration remains as a correctness
+fallback. Cached direct policies bypass both.
+
+### 6.3 Optional best-plan score
+
+Hard validity is never traded against a score. For `--best`, already-valid
+candidates receive normalized terms:
+
+$$
+\Phi=
+\lambda_m\phi_m+
+\lambda_j\phi_j+
+\lambda_c\phi_c+
+\lambda_r\phi_r+
+\lambda_t\phi_t,
 $$
 
 with
 
-- $\Phi_{manip} = \min\big(\bar w_A(q_A),\ \bar w_B(q_B),\ Q_{down}(g_B)\big)$ — worst-case penalized manipulability across the handoff and downstream chain;
-- $\Phi_{jl} = \min_i \dfrac{\min(q_i - q_i^{min},\ q_i^{max} - q_i)}{\tfrac{1}{2}(q_i^{max} - q_i^{min})}$ — normalized joint-limit margin over both robots' branches;
-- $\Phi_{clear} = d_{clear}(h)$ — minimum collision clearance at co-grasp;
-- $\Phi_{reorient} = d_{SO(3)}\big(R_h R_{g_B},\ R_{ins}\big)$ — B's residual reorientation after receiving;
-- $\Phi_{cycle} = \|q_A - q_A^{now}\|_{W} + \|q_B^{ho} - q_B^{home}\|_{W}$ — weighted joint travel as a cycle-time proxy.
-
-The penalized manipulability combines Yoshikawa's index with a joint-limit penalty (Tsai's measure):
-
 $$
-\bar w(q) = w(q) \cdot \Big(1 - \exp\Big(-k \prod_i \tfrac{(q_i - q_i^{min})(q_i^{max} - q_i)}{(q_i^{max} - q_i^{min})^2}\Big)\Big).
+\phi_r=1-\frac{d_{SO(3)}(R_h,R_{ins})}{\pi},
+\qquad
+\phi_t=\exp(-L_q/L_0).
 $$
 
-Two refinements worth using on a real cell:
+The reorientation term compares the two **part** orientations $R_h$ and
+$R_{ins}$. The former expression $d(R_hR_{g_B},R_{ins})$ compared a TCP
+orientation with a part orientation and was invalid. Manipulability, joint
+margin, clearance, and cycle travel are similarly normalized before weighting.
 
-- **Directional manipulability at insertion.** Yoshikawa's $w$ is isotropic, but insertion cares about specific directions: translation along the pin axis $\hat z_{ins}$ and rotation about it. Use the task-direction ellipsoid measure
-$$
-\alpha(\hat u) = \big(\hat u^{\top} (J J^{\top})^{-1} \hat u\big)^{-1/2}
-$$
-evaluated at $\hat u = \hat z_{ins}$ (velocity form) — and its force-ellipsoid dual for the preload direction, since force and velocity ellipsoids are reciprocal (the force ellipsoid uses $(JJ^\top)$ in place of $(JJ^\top)^{-1}$).
-- **Wrist-rotation margin, explicitly.** Insertion yaw-dither consumes joint 6. Require $|q_6^{ins}| \leq q_6^{max} - \theta_{dither} - m_{jl}$ across all $k$ holes; parts with rotational pin symmetry (e.g., 2-pin at 180°) let you fold $q_6$ by the symmetry angle — check both.
+## 7. Collision policy and motion planning
 
-Weights: keep G1–G6 hard, then a weighted-sum or lexicographic $\Phi$; start with $\lambda = (1,\ 0.5,\ 0.3,\ 0.5,\ 0.2)$ after normalizing each term to $[0,1]$, and tune on logged cycles.
+### 7.1 Semantic, bounded contact
 
----
+Expected contact is permitted only for named phase semantics:
 
-## 5. Stage 4 — Handoff execution (the mechanics)
+- a holder may contact the part only with its gripper collision components;
+- it may never hide part contact with link 6, wrist, or another arm link;
+- current static-holder penetration is bounded to 0.75 mm;
+- placement permits only the part/support-surface pair; and
+- geometric insertion permits only the part/PCB pair.
 
-Let $h^{\star} = (X_h, g_A, g_B)$ be the winner. Execution sequence with force interlocks:
+Every other contact remains a hard failure. An allowed pair is not a global
+collision disable and does not exempt deep penetration.
 
-1. A moves to $X_h g_A$ (already there, or a final linear approach ≤ 50 mm).
-2. B moves to a pre-handoff pose $X_h\, g_B\, \text{Trans}(0,0,-d_{pre})$, approaching along its gripper $\hat z$; $d_{pre}$ ≈ 30–50 mm.
-3. B advances linearly to $X_h g_B$ at reduced speed with (if available) a force guard $|F| < F_{guard}$; a contact spike ⇒ misalignment beyond the capture region ⇒ abort, retreat, re-plan.
-4. **Co-grasp**: B closes; verify B's aperture $d_B \approx d_{expected} \pm \tau$ (part actually captured) **before** A releases. During the co-grasp instant the part is dually constrained — keep it short (< 300 ms) and command no motion; if either robot has active compliance, soften it here to avoid internal-force buildup from the residual misalignment $\exp(\hat\xi^{\wedge})$.
-5. A opens fully and retreats along $\hat r_A$ (linear, ≥ jaw depth + margin); then B is free to move.
-6. B aperture + (optional) wrist-force sanity check ⇒ handoff confirmed ⇒ proceed to scanner.
+With an articulated gripper, named pad geoms should replace the broad static
+`gripper_collision_*` holder allowance.
 
-The **capture region** analysis from §2 governs the tolerances here: gripper-to-gripper misalignment covariance
+### 7.2 Adaptive edge validation and RRT-Connect
 
-$$
-\Sigma_{ho} = \mathrm{Ad}\,\Sigma_g\,\mathrm{Ad}^{\top} + \Sigma_{r2r}
-$$
+For joint edge $(q_0,q_1)$, the validator recursively/subdivisively samples so
+that no joint changes by more than the system maximum $\Delta q_{max}$ between
+checks. This fixes the old fixed-eight-sample method, whose collision resolution
+degraded as an edge became longer.
 
-(grasp uncertainty + robot-to-robot calibration) must satisfy $3\sigma$ lateral < jaw chamfer / compliance funnel. If it doesn't, fix the calibration or add compliant jaw geometry — do not try to plan your way out of a metrology problem.
+If the direct edge collides, deterministic bidirectional RRT-Connect searches
+within joint limits and explicit time/node budgets. Its collision callback
+poses the part rigidly with the holder or holds it fixed on the support, so it
+checks the same coupled state that execution will replay. Successful sparse
+paths are shortcut-smoothed and densified/revalidated before use.
 
----
+The checker exposes a non-force-producing MuJoCo contact margin of 0.5 mm for
+all non-authorized swept-path pairs. The co-grasp state separately requires
+$5.0+1.5=6.5$ mm (nominal clearance plus calibration 3-sigma). Placement phases
+authorize bounded part/support contact and positive finger/support proximity;
+the latter has zero permitted penetration. Thus necessary table approach is
+not confused with an unrestricted collision exemption.
 
-## 6. Stage 5 — Regrasp branch (when direct handoff fails)
+## 8. Stable placement and backward reorientation
 
-Triggered when $\mathcal{H} = \emptyset$ after §4 (typically: the bin pick forced an unfavorable $\hat g_A$ — part gripped by the face B needs, or pins pointing at A's wrist).
+### 8.1 Stable pose generation
 
-### 6.1 Stable placements
-
-Precompute the part's stable placement set $\mathcal{P} = \{p_1, \dots, p_m\}$ on a horizontal surface: each $p_l$ is an equivalence class of part orientations resting on a facet of the convex hull, valid iff the gravity projection of the center of mass falls inside the support polygon with margin:
-
-$$
-\pi_{\hat g}(\mathbf{c}) \in \mathrm{ConvHull}(\text{contact facet}), \qquad \text{margin} \geq \epsilon_{stab}.
-$$
-
-(`trimesh.poses.compute_stable_poses` computes these, with quasi-static probabilities, directly from the CAD mesh.) Each placement is a part pose on the nest, free in yaw:
-
-$$
-X_{place}(l, \theta) = {^{W}T_N}\cdot \text{Rot}_z(\theta) \cdot T_{p_l}.
-$$
-
-### 6.2 Regrasp graph
-
-Build the bipartite **placement–grasp feasibility table** offline:
+For each approximately coplanar extreme support facet, construct its 2-D convex
+support polygon $\mathcal S$. A placement is quasistatically stable if the COM
+projection lies inside with margin:
 
 $$
-F[l, i] = \mathbb{1}\big[\ \text{grasp } g_A^{(i)} \text{ on placement } p_l \text{ is surface-collision-free and IK-feasible for A over some } \theta\ \big].
+\operatorname{sdist}
+\left(\pi_g(c_P),\partial\mathcal S\right)
+\ge\epsilon_{stab}.
 $$
 
-A regrasp is a path: current grasp $\hat g_A$ → place at some $p_l$ with $F[l, \hat i] = 1$ (A can *put it down* from the current grasp) → re-pick with $g_A'$ such that $F[l, i'] = 1$ **and** $g_A'$ admits a non-empty $\mathcal{H}$ (re-run §4 with $g_A'$; cache which grasps are handoff-viable — this too is precomputable). One placement hop suffices for almost all industrial parts; if not, search the graph (nodes = grasps ∪ placements, edges = $F$) with Dijkstra, cost = cycle time per hop. Choose $\theta$ (yaw on the nest) to maximize the re-pick's $\bar w$ — a free 1-DOF optimization, solved by a 10–20-point line search.
+The implementation evaluates connected CAD components independently. Closed
+components contribute uniform-density signed-volume COM estimates. If the mesh
+is open/nonmanifold or closed geometry is not representative, it explicitly
+falls back to the CAD bounding-box center; this lowers physical confidence and
+must not be presented as measured mass properties.
 
-**Pose uncertainty across the regrasp**: placing on a flat plate adds settle error (~0.5–1 mm, part-dependent). If the nest is a machined V-groove / pocket, placement instead *reduces* uncertainty to fixture tolerance (~0.05–0.1 mm) — which is why a fixture nest beats a flat plate whenever you can afford the tooling: it turns the regrasp from an error-accumulating step into an error-*resetting* step. With a flat plate, add a quick 2D camera shot over the nest to re-measure yaw + XY before re-picking.
+The selected support normal maps to support-frame $-Z$, the plane is $N.z=0$,
+and `+N.z` points away from the table. A stage instance is valid only if the
+complete projected part footprint fits within the declared rectangular region
+with edge margin. Yaw samples are a system search policy.
 
----
+For characteristic part scale $s_P=\lVert p_{max}-p_{min}\rVert_2$ and stage
+scale $s_N=\min(w_N,h_N)$, the reference policy uses
+$\epsilon_{stab}=0.005s_P$. Its dimensionless placement robustness is
 
-## 7. Full decision algorithm
+$$
+\rho_{place}=\min\!\left(
+\operatorname{clip}\!\left(\frac{2m_{support}}{s_P},0,1\right),
+\operatorname{clip}\!\left(\frac{2m_{edge}}{s_N},0,1\right)
+\right).
+$$
 
+This cached value is propagated to both the place and re-pick task-graph edges;
+it is not a hard-coded score.
+
+### 8.2 Feasibility graph
+
+Let
+
+- $\mathcal A$ be candidate A grasps;
+- $\mathcal B^*=\mathcal G_B^*$ be insertion-feasible B grasps;
+- $\mathcal P$ be stable stage placements;
+- $D\subseteq\mathcal A\times\mathcal B^*$ be fully validated direct co-grasp
+  edges; and
+- $F\subseteq\mathcal P\times\mathcal A$ be validated placement/grasp edges.
+
+Each edge stores cycle cost, bottleneck robustness, and its continuous
+trajectory witness. A reorientation transition $a_i\to p\to a_j$ exists only
+when both $(p,a_i)$ and $(p,a_j)$ are in $F$.
+
+The search proceeds backward from $\mathcal B^*$ through $D$ and then through
+shared placements in $F$. A successful sequence is
+
+$$
+a_0,p_1,a_1,\ldots,p_k,a_k,b,
+\qquad (a_k,b)\in D,\ b\in\mathcal B^*.
+$$
+
+This terminal condition is important: a grasp that merely looks different
+after re-pick is not useful unless it connects to an insertion-feasible B
+grasp.
+
+Selection is lexicographic:
+
+1. if $a_0$ has any direct edge into $\mathcal B^*$, use direct handoff and do
+   not reorient;
+2. otherwise minimize summed cycle cost within the maximum hop bound;
+3. break ties with fewer hops;
+4. then maximize minimum edge robustness; and
+5. use stable ID ordering for reproducibility.
+
+The generic `TaskGraph` supports bounded multi-hop paths. The current reference
+integration finds a one-placement solution for the forced adverse grasp and
+connects it to a separately verified direct goal.
+
+### 8.3 Pose uncertainty through placement
+
+A flat surface does not reset XY/yaw uncertainty and may add settling error. A
+kinematic simulation cannot certify that error distribution. A production
+system should use a locating nest or remeasure the part on the support. A
+fixture can reduce uncertainty to its tolerance; an unobserved flat placement
+cannot be assumed to do so.
+
+## 9. Handoff and insertion execution
+
+For selected direct plan $h^*$:
+
+1. A follows its checked current-to-pre-handoff and approach paths.
+2. B follows its checked pre-handoff and guarded approach paths.
+3. B closes to the geometry-required aperture; aperture/force capture is
+   verified before A release.
+4. No robot moves during the short co-grasp dwell.
+5. Ownership transfers transactionally from A to B.
+6. A follows its checked retreat.
+7. B moves to the scanner.
+8. The measured post-scan $g_B$ recomputes every downstream TCP target.
+9. Correction and path gates are rerun if the measured grasp changes.
+10. B follows pre-insertion and insertion paths.
+
+For reorientation, prepend checked place, release, retreat/re-approach,
+re-pick, capture, and lift/transit paths.
+
+The executor checks collision at every replay waypoint. An unexpected contact
+raises an abort and prevents the next state transition. This continuous monitor
+is independent of the planner's prior result and protects against corrupted or
+modified trajectories.
+
+The current close, force guard, scanner, and weld transfer are idealized because
+the gripper is static and no sensor model exists. The execution state machine is
+verified; the corresponding physical signals are not.
+
+### 9.1 Capture uncertainty
+
+For independent grasp and robot-to-robot calibration covariances in a common
+tangent convention,
+
+$$
+\Sigma_{ho}=\Sigma_{grasp}+\Sigma_{r2r}.
+$$
+
+If a covariance originates in another frame it is first transported with the
+appropriate adjoint. Componentwise 3-sigma translation/rotation must fit inside
+the receiver's declared capture region. Planning cannot compensate for a
+capture region smaller than calibrated uncertainty; that requires better
+metrology or compliant geometry.
+
+## 10. Offline artifacts and cycle time
+
+The cache key is content-addressed from artifact/schema version, CAD/scene
+fingerprints, project/task transforms, relevant solver policy, and declared
+upstream dependencies. Entries are atomically written and integrity checked.
+
+The dependency order is:
+
+```text
+CAD/scene identity
+  -> geometry grasp library
+  -> downstream receiver feasibility
+  -> direct co-grasp/motion policy
+  -> stable placement instances
+  -> backward reorientation policy
+  -> coverage report
 ```
-procedure PLAN_AND_EXECUTE_HANDOFF(ĝ_A):
-    # -- offline, already available --
-    #   M_A, M_B          reachability maps                          (§3.2)
-    #   G_B*, Q_down      downstream-feasible receiver grasps + quality
-    #   C[i,j]            gripper co-grasp compatibility              (§3.3)
-    #   F[l,i], P         placement–grasp table, stable placements    (§6)
 
-    for attempt in 1..MAX_REGRASP+1:
-        H ← ∅
-        for X_h in POSE_GRID ∩ dual_reach(M_A, M_B):                 # G1
-          for g_B in G_B* with C[current_grasp, g_B] = 1:
-            if not exact_IK_all_branches(X_h, ĝ_A, g_B): continue    # G2
-            if not joint_sing_margins(q_A, q_B):        continue     # G3
-            if not collision_free_cograsp_and_sweeps(): continue     # G4
-            # G5 folded into Q_down(g_B) offline
-            if not paths_exist():                       continue     # G6
-            H ← H ∪ {(X_h, ĝ_A, g_B, Φ)}                              # §4.2
-        if H ≠ ∅:
-            h* ← argmax_Φ H
-            execute_direct_handoff(h*)                                # §5
-            return SUCCESS
+Reachability maps and reusable motion roadmaps can be added at the same offline
+tier. They are rejectors/proposals; exact online gates remain authoritative.
 
-        # -- regrasp branch --
-        if attempt > MAX_REGRASP: return FAIL_REJECT_PART
-        (p_l, θ, g_A') ← best_regrasp(ĝ_A, F, P)                      # §6
-        if none: return FAIL_REJECT_PART
-        place(p_l, θ); re-measure pose (fixture nest or camera)
-        pick with g_A'; verify aperture/force
-        ĝ_A ← g_A' ⊕ measured correction
+The 2026-07-12 Mac Studio snapshot for project fingerprint
+`aaff9b2dfcdbb71721f6fe8776d8bf0fbdceb892ab55ac403f04cb47acfef9f0`
+and solver fingerprint
+`d652ff9f31a7181d1dbdb6ba37bd2c201d8a76a3afddbb1dc9d656accd451139`
+measured:
 
-    # after handoff:
-    scan → refine part-in-B-gripper pose → recompute insertion TCP targets → insert
+- 23 downstream-valid receiver grasps from 128 geometry candidates;
+- downstream filter cold computation 149.9 s;
+- direct policy cold computation 2.93 s;
+- direct policy cache hit 26.9 ms;
+- adverse-grasp reorientation cold computation 4.39 s;
+- reorientation policy cache hit 4.58 ms; and
+- stable-placement cache hit 4.59 ms.
+
+These measurements are not a real-time guarantee and do not include robot
+motion. Production CT is obtained by running the production precompute after
+every content change and covering the expected initial-grasp domain. A truly
+new continuous initial state may still require cold numeric IK/collision/RRT.
+
+## 11. Coverage certificate and physical certification
+
+Let $\mathcal D$ be the finite, explicitly declared set of admissible initial
+grasp classes. The task graph partitions it into
+
+$$
+\mathcal D=
+\mathcal D_{direct}\ \dot\cup\
+\mathcal D_{reorient}\ \dot\cup\
+\mathcal D_{uncovered}.
+$$
+
+Coverage is
+
+$$
+\gamma=
+\frac{|\mathcal D_{direct}|+|\mathcal D_{reorient}|}{|\mathcal D|}.
+$$
+
+The implementation marks a report certified only when $\gamma$ meets or exceeds
+the requested target, normally 1.0. “100%” is therefore scoped to $\mathcal D$
+and the fingerprinted model/policy. It is not a claim over all continuous
+poses, unmodeled obstacles, arbitrary parts, or calibration drift.
+
+The ordinary demo/run covers only its known-start singleton. The project
+manifest separately declares whether the offline domain is only that state or
+the known state plus the deterministic geometry-grasp library; qualification
+enumerates exactly the declared source.
+
+Logical coverage is also not physical certification. The current project must
+report `physical_certified: false` even when its singleton is feasible,
+because:
+
+- its gripper is a static STL without finger joints or physical aperture/
+  contact validation;
+- its PCB is a solid collision board without actual hole/chamfer collision CAD;
+- the part has no separate pin collision model or calibrated contact materials;
+  and
+- the current executor still uses ideal weld ownership and virtual capture/
+  insertion predicates.
+
+Physical certification additionally needs calibrated transforms and uncertainty,
+measured COM/friction, real gripper/force feedback, sensor error models,
+pin/hole geometry, hardware stopping-distance validation, and coverage over the
+declared production domain.
+
+## 12. Learning: proposal acceleration only
+
+The best first learning application is supervised proposal ordering. Offline
+deterministic planning already produces labels such as:
+
+- hard-gate success/failure and first failing gate;
+- IK/collision/RRT solve time;
+- clearance and bottleneck robustness;
+- path/cycle cost; and
+- downstream insertion outcome.
+
+A gradient-boosted model or small neural ranker can prioritize grasps, handoff
+poses, and placement/re-pick edges. Evaluate top-k feasible recall, latency, and
+distribution shift on held-out part/cell variations. Preserve deterministic
+fallback ordering.
+
+Learning has no authority to relax or replace geometry, IK, joint, collision,
+uncertainty, motion, or execution-monitor gates. The current
+`SafetyGatedRanker` enforces this boundary by excluding proposals marked
+hard-invalid.
+
+RL is overkill for the current mostly static combinatorial problem. It may be
+useful later for high-level scheduling or a separately safety-wrapped contact
+controller, but RL reward/value is not evidence of collision freedom,
+reachability, capture, or physical certification.
+
+## 13. Complete direct-first algorithm
+
+```text
+OFFLINE_OR_AFTER_CONTENT_CHANGE(project):
+    fingerprint CAD, calibration, feature frames, and solver policy
+    normalize/tessellate exact visual CAD; prepare collision models
+    G_A, G_B <- geometry antipodal contact grasps
+    B_star <- downstream_filter(G_B, scanner, pin/hole targets,
+                                correction envelope, IK, collision, motion)
+    P <- COM/support/footprint-valid stable stage placements
+    cache all artifacts by content key
+
+PLAN_ONE_KNOWN_START(X_W_P_start, q_A_start):
+    g_A <- inverse(X_W_P_start) * FK_W_A(q_A_start)
+
+    direct <- search_handoff_region(g_A, B_star,
+                                    induced-TCP reachability,
+                                    IK/margins,
+                                    distinct contact patches,
+                                    full component collision,
+                                    adaptive-edge/RRT motion)
+    if direct exists:
+        return DIRECT(direct)               # hard branch preference
+
+    direct_goals <- A grasps having verified edges to B_star
+    F <- collision/IK/motion-valid placement-grasp edges
+    graph <- backward_graph(B_star, direct_goals, P, F)
+    reorientation <- minimum_cycle_path(graph, g_A, max_hops)
+    if reorientation exists:
+        return REORIENT_THEN_DIRECT(reorientation)
+
+    return UNCOVERED(reason and gate statistics)
+
+EXECUTE(plan):
+    replay only checked trajectories
+    monitor every waypoint for unexpected contact
+    enforce capture-before-release transaction
+    scan/recompute held grasp and downstream TCP targets
+    revalidate correction/path when the measured grasp changes
+    approach/insert along configured hole axis
 ```
 
-Online cost with the precomputation in place: G1 lookups are microseconds; the dominant cost is G2/G4 on the ~10–100 survivors — well under 100 ms with analytic IK + FCL, negligible against a multi-second pick cycle. Without the offline $\mathcal{G}_B^{\star}$ factorization, the same search would need scanner + insertion IK/collision checks *per candidate* and would be 50–100× slower — that factorization is the difference between "online handoff optimization" being a research topic and a production feature.
+## 14. Corrections relative to the original prototype
 
----
+| Defect | Correct method |
+|---|---|
+| G1 queried the part origin | Query each induced TCP pose $({}^WT_{R_0})^{-1}X_hg_R$ |
+| Symmetries right-multiplied `g` | For `g = ^P T_E`, apply symmetry on the left |
+| Both grippers targeted the part center | Generate distinct antipodal contact pairs across the native surface |
+| Co-grasp used a palm proxy/ignored gripper collision | Check all current eight static components plus contact-patch occupancy |
+| Holder allowance hid wrist/part contact | Permit only named/bounded gripper-part contact |
+| Pre-insertion assumed world/part Z | Offset opposite each semantic hole `+Z` axis |
+| Correction yaw assumed world Z | Rotate about each physical hole axis |
+| Reorientation score mixed TCP and part frames | Compare $R_h$ with $R_{ins}$ |
+| Reorientation interpolated unchecked joints | Adaptive edge validation, then bounded RRT-Connect |
+| Re-pick was not tied to downstream success | Search backward from insertion-feasible B grasps |
+| A feasible demo implied general coverage | Certify only an explicitly declared admissible domain |
 
-## 8. What to log and how to validate
+## 15. Validation and commands
 
-Per cycle, log: $\hat g_A$ (and its source), $|\mathcal{H}|$, chosen $h^{\star}$ with all score components, regrasp invocations, co-grasp force/aperture traces, and downstream outcome (scan residual, insertion retries). Then validate:
+The current direct visualization and the forced adverse-grasp reorientation
+visualization both use planner-produced, collision-checked paths. The forced
+demo refuses to run if the initial grasp is not rejected as intended, if no
+stable placement/re-pick path exists, or if the re-picked A grasp lacks a
+verified edge to an insertion-feasible B grasp. Regression tests also inject
+unexpected part/fixture collision and verify execution abort.
 
-- **Direct-handoff rate** $= P(\mathcal{H} \neq \emptyset)$ vs. pick pose — if low, the fix is usually adding grasps to $\mathcal{G}_B$ or widening the orientation band, not more search.
-- **Score → outcome correlation**: regress insertion retries against $Q_{down}(g_B)$ and the correction-margin term; if uncorrelated, your $w_{min}$ and margins are mis-set.
-- **Handoff misalignment**: periodically scan the part in B's gripper immediately post-handoff and compare with the planned $g_B$ — this measures $\Sigma_{ho}$ empirically and closes the loop on the §2/§5 tolerances.
-- **Ablation**: run a period with fixed handoff poses vs. the planner; the planner should win specifically on the tail (unfavorable picks) — that tail is where the yield lives.
+Run the canonical workflow from the repository root:
 
----
+```bash
+source .venv/bin/activate
+python scripts/prepare_project_cad.py --project mujoco_sim/project.yaml
+python scripts/build_mujoco_scene.py
+python scripts/precompute_pipeline.py --project mujoco_sim/project.yaml \
+  --model mujoco_sim/models/scene.xml --production
+python -m mujoco_sim.pipeline --execute --json
+```
 
-## 9. Practical implementation stack
+On macOS, visualize with:
 
-Analytic IK: IKFast or the closed-form GP7 solution (Yaskawa publishes the DH parameters); numeric fallback TRAC-IK. Collision: FCL (via MoveIt or standalone); represent grippers + part as convex decompositions (VHACD). Reachability maps: the `reuleaux` / MoveIt reachability tooling, or roll your own — it's about a day of GPU-batched FK. Stable poses: `trimesh.poses.compute_stable_poses`. $SO(3)$ sampling: HEALPix-based or the 72-rotation icosahedral set. All of §3.2's precomputation is embarrassingly parallel — batch FK/IK on GPU if the grids grow.
+```bash
+mjpython -m mujoco_sim.visualize_pipeline --hold -1
+mjpython -m mujoco_sim.visualize_reorientation_demo --hold -1
+```
 
-In ROS 2, structure it as a `handoff_planner` node (service: plan from $\hat g_A$ → returns $h^{\star}$ or a regrasp plan) feeding a BehaviorTree.CPP tree that sequences pick → validate grasp → plan → [direct handoff | place–regrasp–replan] → co-grasp interlock → scan → insert, with the force/aperture interlocks as condition nodes — this drops straight into the BT structure of an existing ROS 2 manipulation pipeline.
+Use ordinary `python` for those passive-viewer modules on Linux. The complete
+focused direct-run test command list is maintained in
+[mujoco_handoff_pipeline.md](mujoco_handoff_pipeline.md#8-exact-commands).

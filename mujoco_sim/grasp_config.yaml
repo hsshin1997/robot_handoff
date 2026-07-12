@@ -1,0 +1,7 @@
+# Deprecated compatibility placeholder.
+#
+# Parts, the active part, and the known startup ^E T_P pose are defined once
+# in project.yaml. Grasp candidates are generated from CAD and cached; users
+# do not maintain a per-part axis/roll grasp table.
+deprecated: true
+replacement: mujoco_sim/project.yaml

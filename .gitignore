@@ -32,6 +32,12 @@ coverage.xml
 *.cover
 *.log
 
+# Reproducible MuJoCo preprocessing/planning artifacts
+mujoco_sim/cache/
+mujoco_sim/models/generated/
+mujoco_sim/models/generated_cad/
+mujoco_sim/models/scene.xml
+
 # Editors and IDEs
 .idea/
 .vscode/

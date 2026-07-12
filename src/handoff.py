@@ -135,9 +135,9 @@ class HandoffPlanner:
         self.T_fA_part = np.asarray(cfg["T_flangeA_part"], dtype=float)
         self.T_part_fA = kin.inv_T(self.T_fA_part)
         self.X_ins = np.asarray(cfg["T_world_insert"], dtype=float)
-        self.G = self._expand_symmetry(
+        self.G = self._filter_grasp_width(self._expand_symmetry(
             [(e["name"], np.asarray(e["T"], dtype=float)) for e in cfg["grasp_set_G"]],
-            cfg.get("part_symmetry_rpy_deg", []))
+            cfg.get("part_symmetry_rpy_deg", [])))
         self.home_qA = np.asarray(cfg["home_qA"], dtype=float)
         self.home_qB = np.asarray(cfg["home_qB"], dtype=float)
         self.rng = np.random.default_rng(7)
@@ -176,6 +176,32 @@ class HandoffPlanner:
                 g2 = S @ g
                 if not any(np.allclose(g2, gg, atol=1e-9) for _, gg in out):
                     out.append((f"{name}~s{i+1}", g2))
+        return out
+
+    FINGER_GAP = 0.024      # max jaw opening (see gp7.urdf gripper)
+
+    def _filter_grasp_width(self, G):
+        """Drop grasps whose closing width exceeds the jaw opening. The
+        closing direction is the flange y-axis expressed in the part frame
+        (column 1 of T_part_flangeB); the part extent along it must fit.
+        Without this filter, physically impossible grasps pass the kinematic
+        gates because part-finger contact is whitelisted at the co-grasp."""
+        mesh = self.s.cfg.get("part_mesh")
+        if mesh:
+            from scene import _stl_bbox, ROOT as _R
+            lo, hi = _stl_bbox(os.path.join(_R, mesh))
+            half = (hi - lo) / 2.0
+        else:
+            half = np.asarray(self.s.cfg["part_half_extents"], dtype=float)
+        out = []
+        for name, g in G:
+            close_dir = np.abs(g[:3, 1])
+            width = 2.0 * float(half @ close_dir)   # extent along closing dir
+            if width < self.FINGER_GAP - 0.002:
+                out.append((name, g))
+        if not out:
+            raise ValueError("no grasp in grasp_set_G fits the finger gap "
+                             "for this part — add narrower-closing grasps")
         return out
 
     def _config_ok(self, robot, q) -> bool:

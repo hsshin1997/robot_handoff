@@ -1,0 +1,42 @@
+# Internal primitive-fixture fallback used only while measured table/bin/PCB
+# CAD is unavailable. Robot bases, initial joints, grippers/TCPs, workcell CAD,
+# collision assets, active parts, and task regions live only in project.yaml.
+#
+# Fixture positions are reconstructed from the lab photographs, not surveyed.
+# Height is authoritative per the requested 0.93 m floor-to-tabletop dimension:
+# workcell floor -0.610 + 0.930 = tabletop world z 0.320 m.
+fixtures:
+  floor_z: -0.610
+  table_height: 0.930
+  supply_table:
+    center_xy: [0.425, 0.455]
+    size_xy: [1.050, 0.360]
+    top_thickness: 0.030
+    leg_size: 0.035
+  bins:
+    - name: supply_bin_left
+      center_xy: [0.115, 0.455]
+      interior_xy: [0.210, 0.170]
+      wall_height: 0.085
+      wall_thickness: 0.008
+    - name: supply_bin_right
+      center_xy: [0.405, 0.455]
+      interior_xy: [0.210, 0.170]
+      wall_height: 0.085
+      wall_thickness: 0.008
+  reorientation_surface:
+    # Robot-side edge of the supply table, clear of the scanner overhang.
+    center_xy: [0.735, 0.315]
+    size_xy: [0.240, 0.200]
+    thickness: 0.012
+  pcb_table:
+    center_xy: [0.425, -0.455]
+    size_xy: [0.760, 0.360]
+    top_thickness: 0.030
+    leg_size: 0.035
+  pcb_fixture:
+    center_xy: [0.425, -0.455]
+    base_size_xy: [0.460, 0.270]
+    base_thickness: 0.025
+    board_size_xy: [0.300, 0.170]
+    board_thickness: 0.002

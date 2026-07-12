@@ -1,0 +1,113 @@
+# Minimal user-owned manifest. Numerical solver settings and generated grasp
+# libraries do not belong here.
+schema_version: 1
+
+robots:
+  A:
+    model: assets/gp7/gp7.urdf
+    world_base:
+      position_m: [0.0, 0.0, 0.0]
+      rpy_deg: [0.0, 0.0, 0.0]
+    initial_q: [0.90, -0.40, 0.30, 0.00, -0.90, 0.00]
+    gripper: gp7_parallel
+  B:
+    model: assets/gp7/gp7.urdf
+    world_base:
+      position_m: [0.850, 0.0, 0.0]
+      rpy_deg: [0.0, 0.0, 180.0]
+    initial_q: [0.90, -0.40, 0.30, 0.00, -0.90, 0.00]
+    gripper: gp7_parallel
+
+grippers:
+  gp7_parallel:
+    # The current GP7 scene adapter accepts this static surface assembly. When
+    # an articulated MJCF/URDF becomes available, integrate it through the
+    # articulated scene adapter; changing this path alone is not sufficient.
+    # The fallback component decomposition provides fixed collision geometry.
+    model: assets/gp7/meshes/gripper.STL
+    # STL stores no units; the source gripper assembly was exported in mm.
+    model_units: mm
+    model_static_assembly: true
+    kind: parallel_jaw_static_fallback
+    mount_to_tcp:
+      position_m: [0.0, 0.0, 0.23292807]
+      rpy_deg: [0.0, 0.0, 0.0]
+    manufacturer_capabilities:
+      opening_range_m: [0.002, 0.024]
+      finger_depth_m: 0.050
+      pad_size_m: [0.005, 0.050]
+
+workstation:
+  visual_cad: assets/workcell/workcell.stl
+  # STL stores no units; the source workcell assembly was exported in mm.
+  visual_cad_units: mm
+  visual_cad_static_assembly: true
+  collision_cad: assets/workcell/collision_boxes.yaml
+  additional_collision_cad: []
+  # Current tables/bins have no supplied CAD yet. This enables the documented
+  # photo-matched primitive fallback in internal scene_config.yaml. Set false
+  # when those fixtures are supplied through additional_collision_cad.
+  generated_fixture_primitives: true
+
+parts:
+  connector_header:
+    cad: parts/conn_header/conn_header_bin.stl
+    # This STL was pre-scaled to SI units before it was added to the project.
+    cad_units: m
+    mass_kg: 0.008
+    # Pose of the functional pin frame in the native CAD part frame.
+    part_to_pin:
+      position_m: [0.0127075, -0.010796, 0.0]
+      # Pin +Z points from the plastic body toward the insertion direction.
+      rotation_matrix:
+        - [1.0, 0.0, 0.0]
+        - [0.0, 0.0, -1.0]
+        - [0.0, 1.0, 0.0]
+
+active_task:
+  part: connector_header
+  initial_holder: A
+  # Known startup pose can alternatively be passed through the Python API.
+  initial_tcp_to_part:
+    position_m: [-0.0127075, 0.0052400, 0.0000550]
+    rpy_deg: [0.0, 0.0, 0.0]
+
+# The finite domain for offline "100%" policy qualification. This task assumes
+# one known startup pose/grasp, so that singleton is the declared admissible
+# domain. Use known_start_plus_geometry_library only when every generated pick
+# grasp is genuinely a possible production input; that much broader audit is
+# intentionally expensive.
+qualification:
+  initial_grasp_domain:
+    source: known_start
+
+regions:
+  handoff:
+    type: box
+    center_m: [0.4625, 0.0, 0.640]
+    size_m: [0.300, 0.300, 0.320]
+  reorientation:
+    type: support_rectangle
+    world_pose:
+      position_m: [0.735, 0.315, 0.332]
+      rpy_deg: [0.0, 0.0, 0.0]
+    size_m: [0.240, 0.200]
+  scanner:
+    type: box
+    center_m: [0.425, 0.180, 0.720]
+    size_m: [0.120, 0.120, 0.120]
+  insertion:
+    # Admissible volume for the part origin during pre-insert and insertion.
+    type: box
+    center_m: [0.425, -0.455, 0.380]
+    size_m: [0.360, 0.240, 0.120]
+
+insertion:
+  pcb_world_pose:
+    position_m: [0.425, -0.455, 0.347]
+    rpy_deg: [180.0, 0.0, 0.0]
+  holes:
+    - name: pcb_slot_0
+      pcb_to_hole:
+        position_m: [0.0, 0.0, 0.0]
+        rpy_deg: [0.0, 0.0, 0.0]

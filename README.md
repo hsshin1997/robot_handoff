@@ -1,5 +1,11 @@
 # handoff-sim
 
+> **Current implementation:** the production-oriented path is the MuJoCo
+> pipeline documented in [docs/mujoco_handoff_pipeline.md](docs/mujoco_handoff_pipeline.md)
+> and launched via `python -m mujoco_sim.pipeline`. The PyBullet material below
+> is retained as a legacy prototype and does not describe the current planner,
+> configuration contract, collision policy, or certification status.
+
 Part handoff simulation between two Yaskawa GP7 arms (PyBullet, no ROS).
 
 ## Setup

@@ -1,0 +1,8 @@
+# Deprecated compatibility placeholder.
+#
+# User-owned physical/task inputs now live in project.yaml. System numerical
+# policies live in solver_defaults.yaml. HandoffPlanner never reads this file.
+deprecated: true
+replacement:
+  physical_and_task: mujoco_sim/project.yaml
+  numerical_policies: mujoco_sim/solver_defaults.yaml
