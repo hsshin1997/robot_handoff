@@ -103,10 +103,10 @@ def insertion_preflight(project: Project, project_path: str = DEFAULT_PROJECT) -
         missing.append(
             "insertion.collision_cad is absent; provide explicit PCB-hole/chamfer collision CAD"
         )
-    if not (part.get("pin_collision_cad") or part.get("collision_cad")):
+    if not part.get("collision_cad"):
         missing.append(
-            f"active part {part_name!r} has no pin_collision_cad/collision_cad; the visual "
-            "mesh convex hull cannot represent individual insertion pins"
+            f"active part {part_name!r} has no complete collision_cad; the visual "
+            "mesh convex hull cannot represent the body and individual insertion pins"
         )
     materials = insertion.get("contact_materials")
     if not isinstance(materials, dict):
@@ -167,6 +167,8 @@ def load_or_derive_direct_plan(
     Imports are delayed so ``--help`` and blocked preflights do not construct a
     MuJoCo model or trigger an expensive planning search.
     """
+    from mujoco_sim.plan_codec import deserialize_direct
+    from mujoco_sim.plan_validation import validate_direct_plan
     from mujoco_sim.planning import HandoffPlanner
     from mujoco_sim.sim import WorkcellSim
 
@@ -175,7 +177,7 @@ def load_or_derive_direct_plan(
     if plan_path is not None:
         with open(plan_path, encoding="utf-8") as stream:
             payload = extract_direct_plan_payload(json.load(stream))
-        plan = planner._deserialize_direct(payload)
+        plan = deserialize_direct(payload)
     else:
         report = planner.plan(allow_regrasp=True, return_best=False)
         plan = report.direct if report.direct is not None else (
@@ -183,6 +185,7 @@ def load_or_derive_direct_plan(
         )
     if plan is None:
         raise ExperimentBlocked("the current project has no feasible direct/regrasp handoff plan")
+    validate_direct_plan(plan, q_start=planner.q_start)
     return sim, planner, plan
 
 

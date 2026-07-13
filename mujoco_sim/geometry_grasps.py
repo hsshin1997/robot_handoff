@@ -33,7 +33,7 @@ the second contact.  A pair is retained only when both surface normals lie in
 the Coulomb friction cones and the separation fits the gripper opening range.
 Roll about the closing line is derived from the mesh surface covariance, not
 from hard-coded part axes.  Candidates are non-max suppressed in SE(3) and a
-small farthest-point term preserves spatial coverage on elongated parts.
+    small farthest-point term preserves spatial coverage on elongated parts.
 
 The generator produces *grasp hypotheses*, not complete motion plans.  Exact
 finger/palm collision, robot IK, approach-path collision, task wrench closure,

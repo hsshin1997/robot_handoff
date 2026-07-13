@@ -43,6 +43,45 @@ def _box_mesh(size=(2.0, 1.0, 0.5)) -> TriangleMesh:
     return TriangleMesh.from_triangles(vertices[faces])
 
 
+def test_unseeded_ik_restarts_are_target_keyed_and_cache_history_independent():
+    class FakeKinematics:
+        def __init__(self):
+            self.reset = None
+
+        def set_q(self, robot, q):
+            self.reset = (robot, np.asarray(q).copy())
+
+        def solutions(self, robot, target, restarts, maximum, rng, **kwargs):
+            return [rng.random(8)]
+
+    def make_planner(unrelated_draws):
+        planner = HandoffPlanner.__new__(HandoffPlanner)
+        planner.pos_tol = 1e-4
+        planner.rot_tol = 1e-4
+        planner.restarts = 18
+        planner.max_solutions = 8
+        planner.q_start = {"A": np.arange(6.0), "B": -np.arange(6.0)}
+        planner._ik_cache = {}
+        planner._seed_ik_cache = {}
+        planner.kin = FakeKinematics()
+        # This legacy shared RNG state must have no influence on target IK.
+        planner.rng = np.random.default_rng(7)
+        planner.rng.random(unrelated_draws)
+        return planner
+
+    target = np.eye(4)
+    target[:3, 3] = [0.41, -0.12, 0.73]
+    first = make_planner(0)
+    second = make_planner(1000)
+    result_1 = first._solutions("B", target)
+    result_2 = second._solutions("B", target)
+
+    assert np.array_equal(result_1[0], result_2[0])
+    assert first.kin.reset[0] == second.kin.reset[0] == "B"
+    assert np.array_equal(first.kin.reset[1], first.q_start["B"])
+    assert np.array_equal(second.kin.reset[1], second.q_start["B"])
+
+
 def test_candidate_measures_clearance_in_explicit_cograsp_state():
     class FakeCollision:
         def __init__(self):
@@ -74,6 +113,11 @@ def test_candidate_measures_clearance_in_explicit_cograsp_state():
         },
     }
     planner.q_start = {"A": np.zeros(6), "B": np.zeros(6)}
+    insertion_target = SimpleNamespace(T_W_P_insert=np.eye(4))
+    planner.project = SimpleNamespace(
+        insertion_targets=lambda: [insertion_target],
+        region=lambda name: SimpleNamespace(center=np.zeros(3)),
+    )
     planner.collision = FakeCollision()
     qA = np.linspace(0.1, 0.6, 6)
     qB = np.linspace(-0.6, -0.1, 6)

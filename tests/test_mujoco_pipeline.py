@@ -96,6 +96,16 @@ def test_handoff_grid_is_generated_from_user_region():
     assert all(region.contains(pose[:3, 3]) for pose in poses)
 
 
+def test_planner_rejects_project_different_from_loaded_scene_state():
+    sim = WorkcellSim()
+    try:
+        HandoffPlanner(sim, project_path=__file__)
+    except ValueError as error:
+        assert "does not match the project loaded by WorkcellSim" in str(error)
+    else:
+        raise AssertionError("planner accepted a different project manifest")
+
+
 if __name__ == "__main__":
     tests = [value for name, value in sorted(globals().items()) if name.startswith("test_")]
     for test in tests:

@@ -1,0 +1,44 @@
+# Copy this file beside the supplied full articulated MJCF/URDF and replace
+# every example name with an exact source-model name.
+schema_version: 1
+
+model:
+  path: gripper.xml
+  format: mjcf  # mjcf or urdf
+
+frames:
+  # MJCF: body + site. URDF: mount link + TCP link.
+  mount: gripper_mount
+  tcp: tcp
+  # ^F T_M: model mount frame expressed in the robot flange frame.
+  flange_to_mount:
+    position_m: [0.0, 0.0, 0.0]
+    rpy_deg: [0.0, 0.0, 0.0]
+  # ^M T_E: TCP frame expressed in the model mount frame.
+  mount_to_tcp:
+    position_m: [0.0, 0.0, 0.200]
+    rpy_deg: [0.0, 0.0, 0.0]
+
+actuation:
+  type: parallel_jaw
+  closed_aperture_m: 0.0
+  joints:
+    - name: left_finger_slide
+      # Omit range_m when the source model already declares the limits.
+      # If present, it must exactly match the source model.
+      range_m: [0.001, 0.012]
+      aperture_multiplier: 1.0
+    - name: right_finger_slide
+      range_m: [0.001, 0.012]
+      aperture_multiplier: 1.0
+
+geometry:
+  # These must be the actual contact surfaces on moving finger bodies.
+  pad_collisions: [left_pad_collision, right_pad_collision]
+  # List every collision geom that must enter robot/world collision checks.
+  collisions: [palm_collision, left_pad_collision, right_pad_collision]
+  # List every rendered geom that the adapter must preserve.
+  visuals: [palm_visual, left_finger_visual, right_finger_visual]
+
+# Every imported scene object becomes, for example, A_left_finger_slide.
+scene_name_template: "{robot}_{name}"

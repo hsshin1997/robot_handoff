@@ -189,7 +189,10 @@ def test_project_cli_core_prepares_all_referenced_cad_and_atomic_index():
                     "model": "gripper.obj", "model_units": "mm", "kind": "fixed",
                 }
             },
-            "parts": {"part": {"cad": "part.stl", "cad_units": "m"}},
+            "parts": {"part": {
+                "cad": "part.stl", "cad_units": "m",
+                "collision_cad": "part.stl", "collision_cad_units": "m",
+            }},
             "robots": {},
         }
         project = root / "project.yaml"
@@ -198,7 +201,8 @@ def test_project_cli_core_prepares_all_referenced_cad_and_atomic_index():
         index = prepare_project(project, generated, project_root=root, max_faces=2)
 
         assert [entry["name"] for entry in index["entries"]] == [
-            "grippers.jaw.model", "parts.part.cad", "workstation.visual_cad",
+            "grippers.jaw.model", "parts.part.cad",
+            "parts.part.collision_cad", "workstation.visual_cad",
         ]
         assert index["exact_visual_preservation"] is True
         assert index["visual_downsampling"] is False

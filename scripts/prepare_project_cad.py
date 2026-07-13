@@ -156,6 +156,17 @@ def discover_project_cad(manifest: dict[str, Any]) -> tuple[ProjectCADReference,
         )
         if item:
             result.append(item)
+        if part.get("collision_cad"):
+            collision = _reference(
+                f"parts.{name}.collision_cad", part["collision_cad"],
+                units=part.get("collision_cad_units"),
+                scale_to_m=part.get("collision_cad_scale_to_m"),
+                role="collision-source",
+                static_assembly=bool(part.get(
+                    "collision_cad_static_assembly", True)),
+            )
+            if collision:
+                result.append(collision)
 
     insertion = manifest.get("insertion", {})
     if insertion.get("collision_cad"):
@@ -163,7 +174,8 @@ def discover_project_cad(manifest: dict[str, Any]) -> tuple[ProjectCADReference,
             "insertion.collision_cad", insertion["collision_cad"],
             units=insertion.get("collision_cad_units"),
             scale_to_m=insertion.get("collision_cad_scale_to_m"),
-            role="insertion-collision", static_assembly=True,
+            role="insertion-collision", static_assembly=bool(insertion.get(
+                "collision_cad_static_assembly", True)),
         )
         if item:
             result.append(item)

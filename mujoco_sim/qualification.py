@@ -2,7 +2,21 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 from typing import Iterable, Mapping
+
+
+PHYSICAL_PREREQUISITE_KEYS = (
+    "articulated_gripper_A",
+    "articulated_gripper_B",
+    "calibrated_gripper_contacts",
+    "calibrated_part_contact",
+    "pcb_hole_collision_cad",
+    "complete_part_collision_cad",
+    "calibrated_pin_hole_materials",
+    "articulated_gripper_scene_adapter",
+    "physical_contact_execution_backend",
+)
 
 
 @dataclass(frozen=True)
@@ -10,6 +24,15 @@ class CoverageOutcome:
     class_id: str
     mode: str | None
     reason: str
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.class_id, str) or not self.class_id.strip():
+            raise ValueError("coverage class_id must be a non-empty string")
+        if self.mode not in (None, "direct", "reorientation"):
+            raise ValueError(
+                "coverage mode must be direct, reorientation, or None")
+        if not isinstance(self.reason, str) or not self.reason.strip():
+            raise ValueError("coverage reason must be a non-empty string")
 
     @property
     def covered(self) -> bool:
@@ -20,8 +43,17 @@ def _calibrated_contact(item: Mapping[str, object]) -> bool:
     profile = next((item.get(name) for name in (
         "contact_material", "contact_parameters", "contact")
         if isinstance(item.get(name), Mapping)), None)
-    return bool(profile and profile.get("calibrated") is True
-                and profile.get("friction") is not None)
+    if not profile or profile.get("calibrated") is not True:
+        return False
+    friction = profile.get("friction")
+    values = friction if isinstance(friction, (list, tuple)) else (friction,)
+    try:
+        numbers = tuple(float(value) for value in values)
+    except (TypeError, ValueError):
+        return False
+    return bool(numbers and all(math.isfinite(value) and value >= 0.0
+                                for value in numbers)
+                and numbers[0] > 0.0)
 
 
 def physical_prerequisites(project) -> dict[str, bool]:
@@ -48,8 +80,9 @@ def physical_prerequisites(project) -> dict[str, bool]:
         "calibrated_gripper_contacts": all(gripper_materials),
         "calibrated_part_contact": _calibrated_contact(part),
         "pcb_hole_collision_cad": bool(insertion.get("collision_cad")),
-        "part_pin_collision_cad": bool(
-            part.get("pin_collision_cad") or part.get("collision_cad")),
+        # The scene compiler consumes a complete, convex-decomposed part
+        # collision model. A pin-only file cannot replace body/palm clearance.
+        "complete_part_collision_cad": bool(part.get("collision_cad")),
         "calibrated_pin_hole_materials": bool(
             _calibrated_contact({"contact_material": pin_material})
             and _calibrated_contact({"contact_material": hole_material})),
@@ -80,21 +113,42 @@ def build_coverage_certificate(
     uncovered = [item.class_id for item in values if not item.covered]
     covered = direct + reorientation
     fraction = len(covered) / len(values)
-    prerequisites = dict(physical_prerequisites or {})
+    supplied = dict(physical_prerequisites or {})
+    unknown = sorted(set(supplied) - set(PHYSICAL_PREREQUISITE_KEYS))
+    if unknown:
+        raise ValueError(f"unknown physical prerequisite keys: {unknown}")
+    for name, value in supplied.items():
+        if type(value) is not bool:
+            raise ValueError(
+                f"physical prerequisite {name!r} must be a strict boolean")
+    prerequisites = {
+        name: supplied.get(name, False)
+        for name in PHYSICAL_PREREQUISITE_KEYS
+    }
+    prerequisite_schema_complete = set(supplied) == set(
+        PHYSICAL_PREREQUISITE_KEYS)
     mathematical = fraction >= required
-    physical = mathematical and all(prerequisites.values())
+    # Physical certification always means the complete declared domain. A
+    # lower mathematical acceptance target must never weaken that label.
+    physical = bool(
+        fraction == 1.0
+        and prerequisite_schema_complete
+        and all(prerequisites.values()))
     return {
+        "certificate_schema_version": 2,
         "domain_classes": [item.class_id for item in values],
         "direct_classes": direct,
         "reorientation_classes": reorientation,
         "uncovered_classes": uncovered,
         "covered_count": len(covered),
-        "required_count": len(values),
+        "domain_count": len(values),
+        "required_count": int(math.ceil(required * len(values) - 1e-15)),
         "fraction": fraction,
         "required_fraction": required,
         "mathematical_coverage_certified": mathematical,
         "domain_declaration": dict(domain_declaration or {}),
         "physical_prerequisites": prerequisites,
+        "physical_prerequisite_schema_complete": prerequisite_schema_complete,
         "physical_certified": physical,
         "outcomes": {
             item.class_id: {"mode": item.mode, "reason": item.reason}
@@ -105,6 +159,7 @@ def build_coverage_certificate(
 
 __all__ = [
     "CoverageOutcome",
+    "PHYSICAL_PREREQUISITE_KEYS",
     "build_coverage_certificate",
     "physical_prerequisites",
 ]

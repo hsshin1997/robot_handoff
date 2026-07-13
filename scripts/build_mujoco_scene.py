@@ -18,6 +18,7 @@ import os
 import sys
 import xml.etree.ElementTree as ET
 
+import numpy as np
 import yaml
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
@@ -25,6 +26,8 @@ if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
 from mujoco_sim.cad_preprocess import prepare_cad, scale_to_metres  # noqa: E402
+from mujoco_sim.se3 import (make_transform, transform_from_rpy,
+                            validate_transform)  # noqa: E402
 
 CONFIG = os.path.join(ROOT, "mujoco_sim", "scene_config.yaml")
 PROJECT_CONFIG = os.path.join(ROOT, "mujoco_sim", "project.yaml")
@@ -34,6 +37,29 @@ JOINT_SHORT = ("s", "l", "u", "r", "b", "t")
 
 def vec(text: str | None, default="0 0 0") -> str:
     return " ".join((text or default).split())
+
+
+def fixed_pose_xml(pose: dict | None) -> tuple[str, str]:
+    """Return MJCF position and orientation attributes for a manifest pose."""
+    value = pose or {}
+    if "matrix" in value:
+        transform = validate_transform(np.asarray(value["matrix"], dtype=float))
+    elif "rotation_matrix" in value:
+        transform = make_transform(
+            np.asarray(value["rotation_matrix"], dtype=float),
+            value["position_m"],
+        )
+    else:
+        position = value.get("position_m", [0.0, 0.0, 0.0])
+        rpy_deg = value.get("rpy_deg", [0.0, 0.0, 0.0])
+        transform = transform_from_rpy(
+            position, np.radians(np.asarray(rpy_deg, dtype=float)))
+        rpy = " ".join(map(str, np.radians(np.asarray(rpy_deg, dtype=float))))
+        return " ".join(map(str, transform[:3, 3])), f'euler="{rpy}"'
+    x_axis = " ".join(map(str, transform[:3, 0]))
+    y_axis = " ".join(map(str, transform[:3, 1]))
+    return (" ".join(map(str, transform[:3, 3])),
+            f'xyaxes="{x_axis} {y_axis}"')
 
 
 def resolve_project_asset(path: str, project_path: str) -> str:
@@ -213,19 +239,27 @@ def workstation_collision_assets(
             "workstation.collision_cad must be collision-box YAML or STL/OBJ/STEP CAD"
         )
     workstation = project["workstation"]
+    static_assembly = bool(workstation.get(
+        "collision_cad_static_assembly", True))
     prepared = prepare_cad(
         source, generated_cad,
         units=workstation.get("collision_cad_units"),
         scale_to_m=workstation.get("collision_cad_scale_to_m"),
-        role="collision-source", static_assembly=False)
+        role="collision-source", static_assembly=static_assembly)
     scale = " ".join(str(value) for value in
                      prepared.metadata["source"]["scale_to_m"])
     pose = workstation.get("collision_cad_world_pose", {})
-    position = pose.get("position_m", [0.0, 0.0, 0.0])
-    rpy = [value * 3.141592653589793 / 180.0
-           for value in pose.get("rpy_deg", [0.0, 0.0, 0.0])]
+    position, orientation = fixed_pose_xml(pose)
+    collision_chunks = [
+        chunk
+        for component in prepared.metadata.get(
+            "static_assembly", {}).get("components", [])
+        for chunk in component["chunks"]
+    ]
+    if not collision_chunks:
+        collision_chunks = prepared.metadata["visual"]["chunks"]
     assets, geoms = [], []
-    for index, chunk in enumerate(prepared.metadata["visual"]["chunks"]):
+    for index, chunk in enumerate(collision_chunks):
         mesh_name = f"workstation_collision_mesh_{index:02d}"
         relative = os.path.relpath(
             prepared.artifact_dir / chunk["path"], os.path.dirname(output_path))
@@ -233,8 +267,8 @@ def workstation_collision_assets(
             f'    <mesh name="{mesh_name}" file="{relative}" scale="{scale}"/>')
         geoms.append(
             f'    <geom name="workstation_collision_{index:02d}" type="mesh" '
-            f'mesh="{mesh_name}" pos="{" ".join(map(str, position))}" '
-            f'euler="{" ".join(map(str, rpy))}" class="cell_collision"/>')
+            f'mesh="{mesh_name}" pos="{position}" '
+            f'{orientation} class="cell_collision"/>')
     print(
         "warning: workstation collision mesh uses MuJoCo convex hull contact; "
         "supply convex-decomposed components when concave clearance matters"
@@ -242,7 +276,7 @@ def workstation_collision_assets(
     return assets, geoms
 
 
-def fixture_xml(cfg: dict) -> str:
+def fixture_xml(cfg: dict, *, include_pcb_placeholder: bool = True) -> str:
     """Photo-matched tables and task staging geometry."""
     f = cfg["fixtures"]
     floor = float(f["floor_z"])
@@ -312,14 +346,43 @@ def fixture_xml(cfg: dict) -> str:
     base_t = pcb["base_thickness"]
     px, py = pcb["board_size_xy"]
     pcb_t = pcb["board_thickness"]
-    lines.append(f'      <geom name="pcb_fixture_base" type="box" pos="{cx} {cy} {top_z+base_t/2}" size="{bx/2} {by/2} {base_t/2}" material="fixture_aluminum" class="fixture_collision"/>')
-    lines.append(f'      <geom name="pcb_board" type="box" pos="{cx} {cy} {top_z+base_t+pcb_t/2}" size="{px/2} {py/2} {pcb_t/2}" material="pcb_green" class="fixture_collision"/>')
+    if include_pcb_placeholder:
+        aperture = pcb.get("aperture_size_xy")
+        if aperture is None:
+            lines.append(f'      <geom name="pcb_fixture_base" type="box" pos="{cx} {cy} {top_z+base_t/2}" size="{bx/2} {by/2} {base_t/2}" material="fixture_aluminum" class="fixture_collision"/>')
+            lines.append(f'      <geom name="pcb_board" type="box" pos="{cx} {cy} {top_z+base_t+pcb_t/2}" size="{px/2} {py/2} {pcb_t/2}" material="pcb_green" class="fixture_collision"/>')
+        else:
+            ax, ay = (float(value) for value in aperture)
+            if not (0.0 < ax < min(bx, px) and 0.0 < ay < min(by, py)):
+                raise ValueError(
+                    "fixtures.pcb_fixture.aperture_size_xy must be positive "
+                    "and smaller than both the board and fixture base")
+
+            def aperture_ring(name, sx, sy, z, thickness, material):
+                side_x = 0.5 * (sx - ax)
+                side_y = 0.5 * (sy - ay)
+                x_offset = 0.25 * (sx + ax)
+                y_offset = 0.25 * (sy + ay)
+                lines.extend([
+                    f'      <geom name="{name}_left" type="box" pos="{cx-x_offset} {cy} {z}" size="{side_x/2} {sy/2} {thickness/2}" material="{material}" class="fixture_collision"/>',
+                    f'      <geom name="{name}_right" type="box" pos="{cx+x_offset} {cy} {z}" size="{side_x/2} {sy/2} {thickness/2}" material="{material}" class="fixture_collision"/>',
+                    f'      <geom name="{name}_front" type="box" pos="{cx} {cy-y_offset} {z}" size="{ax/2} {side_y/2} {thickness/2}" material="{material}" class="fixture_collision"/>',
+                    f'      <geom name="{name}_back" type="box" pos="{cx} {cy+y_offset} {z}" size="{ax/2} {side_y/2} {thickness/2}" material="{material}" class="fixture_collision"/>',
+                ])
+
+            aperture_ring(
+                "pcb_fixture_base", bx, by, top_z + base_t / 2,
+                base_t, "fixture_aluminum")
+            aperture_ring(
+                "pcb_board", px, py, top_z + base_t + pcb_t / 2,
+                pcb_t, "pcb_green")
     lines.append(f'      <site name="pcb_origin" pos="{cx} {cy} {top_z+base_t+pcb_t}" size="0.008" rgba="0.1 1 0.2 1"/>')
     lines.append("    </body>")
     return "\n".join(lines)
 
 
-def part_xml(project: dict, mesh_count: int) -> str:
+def part_xml(project: dict, visual_count: int, collision_count: int,
+             collision_mesh_prefix: str = "active_part_mesh") -> str:
     name = project["active_task"]["part"]
     if name not in project["parts"]:
         raise KeyError(f"active part {name!r} is not in project.yaml parts registry")
@@ -329,16 +392,16 @@ def part_xml(project: dict, mesh_count: int) -> str:
         f'      <geom name="part_visual_{index:02d}" type="mesh" '
         f'mesh="active_part_mesh_{index:02d}" contype="0" conaffinity="0" '
         f'group="1" rgba="{rgba}" mass="0"/>'
-        for index in range(1, mesh_count))
+        for index in range(1, visual_count))
     extra_collision = "\n".join(
         f'      <geom name="part_collision_{index:02d}" type="mesh" '
-        f'mesh="active_part_mesh_{index:02d}" group="2" rgba="0 0 0 0" '
+        f'mesh="{collision_mesh_prefix}_{index:02d}" group="2" rgba="0 0 0 0" '
         f'mass="0" friction="0.8 0.01 0.001"/>'
-        for index in range(1, mesh_count))
+        for index in range(1, collision_count))
     return f'''    <body name="part" pos="0.425 0 0.65">
       <freejoint name="part_free"/>
       <geom name="part_visual" type="mesh" mesh="active_part_mesh" contype="0" conaffinity="0" group="1" rgba="{rgba}" mass="0"/>
-      <geom name="part_collision" type="mesh" mesh="active_part_mesh" group="2" rgba="0 0 0 0" mass="{part.get("mass_kg", 0.01)}" friction="0.8 0.01 0.001"/>
+      <geom name="part_collision" type="mesh" mesh="{collision_mesh_prefix}" group="2" rgba="0 0 0 0" mass="{part.get("mass_kg", 0.01)}" friction="0.8 0.01 0.001"/>
 {extra_visual}
 {extra_collision}
       <site name="part_origin" size="0.0025" rgba="1 0.2 0.1 1"/>
@@ -359,40 +422,65 @@ def additional_collision_assets(
     declared = list(workstation.get("additional_collision_cad", []))
     insertion = project.get("insertion", {})
     if insertion.get("collision_cad"):
+        collision_pose = insertion.get(
+            "collision_cad_world_pose", insertion.get("pcb_world_pose"))
+        if collision_pose is None:
+            raise ValueError(
+                "explicit insertion collision CAD requires "
+                "insertion.collision_cad_world_pose"
+            )
         declared.append({
             "cad": insertion["collision_cad"],
             "units": insertion.get("collision_cad_units"),
             "scale_to_m": insertion.get("collision_cad_scale_to_m"),
-            "world_pose": insertion["pcb_world_pose"],
+            "world_pose": collision_pose,
+            "static_assembly": bool(insertion.get(
+                "collision_cad_static_assembly", True)),
+            # Semantic names let collision audits and future pin/hole contact
+            # policies distinguish the insertion fixture from unrelated cell
+            # obstacles without relying on declaration order.
+            "_mesh_name": "insertion_collision_mesh",
+            "_geom_name": "insertion_collision",
         })
     for index, raw in enumerate(declared):
         item = {"cad": raw} if isinstance(raw, str) else dict(raw)
         path = item.get("cad", item.get("path"))
         if not path:
             raise ValueError(f"additional_collision_cad[{index}] has no cad/path")
+        static_assembly = bool(item.get("static_assembly", True))
         prepared = prepare_cad(
             resolve_project_asset(path, project_path), generated_cad,
             units=item.get("units", default_units),
             scale_to_m=item.get("scale_to_m"),
-            role="collision-source", static_assembly=False)
+            role="collision-source", static_assembly=static_assembly)
         scale = " ".join(str(value) for value in
                          prepared.metadata["source"]["scale_to_m"])
         pose = item.get("world_pose", {})
-        position = pose.get("position_m", [0.0, 0.0, 0.0])
-        rpy = [value * 3.141592653589793 / 180.0
-               for value in pose.get("rpy_deg", [0.0, 0.0, 0.0])]
-        for chunk_index, chunk in enumerate(prepared.metadata["visual"]["chunks"]):
+        position, orientation = fixed_pose_xml(pose)
+        collision_chunks = [
+            chunk
+            for component in prepared.metadata.get(
+                "static_assembly", {}).get("components", [])
+            for chunk in component["chunks"]
+        ]
+        if not collision_chunks:
+            collision_chunks = prepared.metadata["visual"]["chunks"]
+        mesh_base = item.get(
+            "_mesh_name", f"additional_collision_mesh_{index:02d}")
+        geom_base = item.get(
+            "_geom_name", f"additional_collision_{index:02d}")
+        for chunk_index, chunk in enumerate(collision_chunks):
             suffix = "" if chunk_index == 0 else f"_{chunk_index:02d}"
-            mesh_name = f"additional_collision_mesh_{index:02d}{suffix}"
+            mesh_name = f"{mesh_base}{suffix}"
+            geom_name = f"{geom_base}{suffix}"
             relative = os.path.relpath(
                 prepared.artifact_dir / chunk["path"], os.path.dirname(output_path))
             assets.append(
                 f'    <mesh name="{mesh_name}" file="{relative}" scale="{scale}"/>')
             geoms.append(
-                f'    <geom name="additional_collision_{index:02d}{suffix}" '
+                f'    <geom name="{geom_name}" '
                 f'type="mesh" mesh="{mesh_name}" '
-                f'pos="{" ".join(map(str, position))}" '
-                f'euler="{" ".join(map(str, rpy))}" '
+                f'pos="{position}" {orientation} '
                 f'class="fixture_collision"/>')
     return assets, geoms
 
@@ -452,6 +540,36 @@ def build_scene(
                     for item in part_prepared.metadata["visual"]["chunks"]]
     active_part_scale = " ".join(str(v) for v in
                                  part_prepared.metadata["source"]["scale_to_m"])
+    part_collision_source = active_part.get("collision_cad")
+    if part_collision_source:
+        part_collision_prepared = prepare_cad(
+            resolve_project_asset(part_collision_source, project_path),
+            generated_cad,
+            units=active_part.get("collision_cad_units"),
+            scale_to_m=active_part.get("collision_cad_scale_to_m"),
+            role="collision-source",
+            static_assembly=bool(active_part.get(
+                "collision_cad_static_assembly", True)),
+        )
+        part_collision_chunks = [
+            part_collision_prepared.artifact_dir / chunk["path"]
+            for component in part_collision_prepared.metadata.get(
+                "static_assembly", {}).get("components", [])
+            for chunk in component["chunks"]
+        ]
+        if not part_collision_chunks:
+            part_collision_chunks = [
+                part_collision_prepared.artifact_dir / chunk["path"]
+                for chunk in part_collision_prepared.metadata["visual"]["chunks"]
+            ]
+        part_collision_scale = " ".join(
+            str(value) for value in
+            part_collision_prepared.metadata["source"]["scale_to_m"])
+        part_collision_prefix = "active_part_collision_mesh"
+    else:
+        part_collision_chunks = list(part_visuals)
+        part_collision_scale = active_part_scale
+        part_collision_prefix = "active_part_mesh"
     gripper_scale = " ".join(str(v) for v in
                              gripper_prepared.metadata["source"]["scale_to_m"])
 
@@ -471,6 +589,13 @@ def build_scene(
             f'    <mesh name="active_part_mesh_{index:02d}" '
             f'file="{os.path.relpath(path, os.path.dirname(output_path))}" '
             f'scale="{active_part_scale}"/>')
+    if part_collision_source:
+        for index, path in enumerate(part_collision_chunks):
+            suffix = "" if index == 0 else f"_{index:02d}"
+            meshes.append(
+                f'    <mesh name="active_part_collision_mesh{suffix}" '
+                f'file="{os.path.relpath(path, os.path.dirname(output_path))}" '
+                f'scale="{part_collision_scale}"/>')
     workstation_collision_meshes, workstation_collision_geoms = (
         workstation_collision_assets(
             cfg, project, output_path=output_path, generated_cad=generated_cad)
@@ -502,7 +627,13 @@ def build_scene(
         for short in JOINT_SHORT:
             actuators.append(f'    <position name="{prefix}_{short}_act" joint="{prefix}_{short}" kp="250" kv="30"/>')
 
-    fixtures = (fixture_xml(cfg) if project["workstation"].get(
+    fixtures = (fixture_xml(
+        cfg,
+        # A declared PCB/hole model replaces only the solid PCB placeholder;
+        # the photo-matched tables, bins, and reorientation surface can remain.
+        include_pcb_placeholder=not bool(
+            project.get("insertion", {}).get("collision_cad")),
+    ) if project["workstation"].get(
         "generated_fixture_primitives", False) else "")
 
     xml = f'''<mujoco model="gp7_real_cell_foundation">
@@ -557,7 +688,7 @@ def build_scene(
 {fixtures}
 {gp7_arm("A", cfg["robots"]["A"], cfg["gripper"], joints, len(gripper_visuals), len(gripper_components))}
 {gp7_arm("B", cfg["robots"]["B"], cfg["gripper"], joints, len(gripper_visuals), len(gripper_components))}
-{part_xml(project, len(part_visuals))}
+{part_xml(project, len(part_visuals), len(part_collision_chunks), part_collision_prefix)}
   </worldbody>
   <equality>
     <weld name="A_part_grasp" body1="A_gripper" body2="part" active="false"/>

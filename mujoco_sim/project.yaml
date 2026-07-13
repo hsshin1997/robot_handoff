@@ -55,14 +55,6 @@ parts:
     # This STL was pre-scaled to SI units before it was added to the project.
     cad_units: m
     mass_kg: 0.008
-    # Pose of the functional pin frame in the native CAD part frame.
-    part_to_pin:
-      position_m: [0.0127075, -0.010796, 0.0]
-      # Pin +Z points from the plastic body toward the insertion direction.
-      rotation_matrix:
-        - [1.0, 0.0, 0.0]
-        - [0.0, 0.0, -1.0]
-        - [0.0, 1.0, 0.0]
 
 active_task:
   part: connector_header
@@ -103,11 +95,29 @@ regions:
     size_m: [0.360, 0.240, 0.120]
 
 insertion:
+  # Optional physical PCB fixture pose used by the scene builder. It does not
+  # alter the exact part target below.
   pcb_world_pose:
     position_m: [0.425, -0.455, 0.347]
     rpy_deg: [180.0, 0.0, 0.0]
-  holes:
+  # Explicit task mode: ^W T_P is the exact pose of the native CAD part frame.
+  # The insertion frame independently defines correction X/Y and insertion +Z.
+  # Do not also define legacy `holes`; the two task modes are mutually exclusive.
+  targets:
     - name: pcb_slot_0
-      pcb_to_hole:
-        position_m: [0.0, 0.0, 0.0]
-        rpy_deg: [0.0, 0.0, 0.0]
+      world_part_pose:
+        # This is a right-angle header: native -Z contains the short PCB tails,
+        # native -Y contains the long exposed pins, and native z=0 is the
+        # seating plane. The generated fallback fixture has a bounded virtual
+        # aperture; replace it with measured PCB/hole CAD for certification.
+        position_m: [0.4123, -0.455, 0.347]
+        rotation_matrix:
+          - [1.0, 0.0, 0.0]
+          - [0.0, 1.0, 0.0]
+          - [0.0, 0.0, 1.0]
+      world_insertion_frame:
+        position_m: [0.425, -0.455, 0.347]
+        rotation_matrix:
+          - [1.0, 0.0, 0.0]
+          - [0.0, -1.0, 0.0]
+          - [0.0, 0.0, -1.0]

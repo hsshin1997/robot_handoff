@@ -13,6 +13,14 @@ geometry:
   # Reject COM projections too close to a support-polygon edge. This is a
   # system safety policy scaled by the prepared part-mesh diagonal.
   minimum_support_margin_mesh_fraction: 0.005
+  # Optional user templates only prioritize nearby CAD/contact-validated
+  # grasps. These system policies bound that association; unmatched templates
+  # cannot inject poses or remove the complete geometry-derived fallback.
+  template_position_tolerance_mesh_fraction: 0.12
+  template_rotation_tolerance_deg: 20.0
+  template_normal_tolerance_deg: 35.0
+  template_matches_per_proposal: 2
+  template_max_proposals: 10000
 planning:
   ik_restarts: 18
   ik_max_solutions: 8
@@ -29,7 +37,9 @@ planning:
   calibration_translation_3sigma_m: 0.0015
   calibration_rotation_3sigma_deg: 0.3
   approach_separation_deg: 60.0
-  edge_max_joint_step_rad: 0.035
+  # Dense swept-collision resolution. The former 0.035 rad spacing missed a
+  # narrow inter-arm clearance violation that the runtime monitor caught.
+  edge_max_joint_step_rad: 0.010
   handoff_position_resolution_m: 0.040
   handoff_candidate_limit: 1000
   prehandoff_distance_m: 0.040

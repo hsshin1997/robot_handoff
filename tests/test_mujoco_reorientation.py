@@ -4,6 +4,8 @@ from __future__ import annotations
 import os
 import sys
 
+import numpy as np
+
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
@@ -13,11 +15,12 @@ from mujoco_sim.visualize_reorientation_demo import build_demo  # noqa: E402
 def test_demo_uses_verified_paths_to_an_insertion_feasible_handoff():
     _, planner, plan, bad_grasp = build_demo()
     downstream = planner.filter_downstream()
-    assert not any(planner._gripper_compatibility(bad_grasp, item.grasp)[0]
-                   for item in downstream)
+    assert np.allclose(plan.g_A_before, bad_grasp)
+    assert not np.allclose(plan.g_A_before, plan.g_A_after)
     assert plan.direct.grasp_name_B in {item.grasp_name for item in downstream}
     assert len(plan.trajectories["A_to_place"]) > 2
     assert len(plan.trajectories["A_place_to_repick"]) > 2
+    assert len(plan.direct.trajectories["A_scanner_clear_to_park"]) > 2
     assert plan.X_place[2, 3] > 0.32
 
 

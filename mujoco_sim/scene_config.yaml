@@ -40,3 +40,7 @@ fixtures:
     base_thickness: 0.025
     board_size_xy: [0.300, 0.170]
     board_thickness: 0.002
+    # Virtual clearance in the generated fallback only. It keeps collision on
+    # the surrounding board/support while allowing the reference connector's
+    # short tails to pass. Replace this placeholder with measured hole CAD.
+    aperture_size_xy: [0.034, 0.018]

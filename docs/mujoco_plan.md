@@ -4,7 +4,7 @@
 > physical-certification limits are documented in
 > [mujoco_handoff_pipeline.md](mujoco_handoff_pipeline.md) and
 > [handoff_pipeline_detailed.md](handoff_pipeline_detailed.md). In particular,
-> the present static gripper and solid PCB do not provide the contact-dynamics
+> the present static gripper and virtual-aperture PCB do not provide the contact-dynamics
 > validation envisioned below.
 
 Goal: add a contact-rich dynamic simulation that VALIDATES and EXECUTES the

@@ -2,12 +2,17 @@
 
 This document describes the current executable implementation. The mathematical
 derivation is in [handoff_pipeline_detailed.md](handoff_pipeline_detailed.md).
+The end-to-end commands are in [mujoco_user_guide.md](mujoco_user_guide.md),
+and offline table/policy construction is documented in
+[mujoco_offline_policies.md](mujoco_offline_policies.md).
 
 The pipeline is geometry-driven and downstream-constrained. A user supplies the
-cell assets, calibrated poses, task regions, and the part pin/PCB hole feature
-frames. The solver derives grasp contacts, jaw aperture, stable placements,
-handoff candidates, reorientation choices, IK branches, and motion paths. There
-are no per-part approach-axis, roll, center-grasp, or finger-opening tables.
+cell assets, calibrated poses, task regions, each exact world-frame insertion
+part pose, and an insertion/correction frame. A legacy pin/PCB-hole feature
+mode is also retained. The solver derives grasp contacts, jaw aperture, stable
+placements, handoff candidates, reorientation choices, IK branches, and motion
+paths. There are no per-part approach-axis, roll, center-grasp, or
+finger-opening tables.
 
 The current connector-header reference project can plan and replay both direct
 handoff and forced reorientation. Those are verified simulation results, not a
@@ -26,11 +31,19 @@ semantics:
 - robot URDF/MJCF models, calibrated world-base transforms, and initial joints;
 - gripper model and mount-to-TCP transform;
 - workstation visual CAD and collision CAD;
-- part CAD, mass, and the semantic `part_to_pin` transform;
+- part CAD and mass;
 - the known startup `TCP-to-part` pose;
 - the finite source used for offline initial-grasp coverage qualification;
 - handoff, scanner, reorientation-stage, and insertion regions; and
-- PCB world pose and one or more `PCB-to-hole` feature transforms.
+- one or more exact `world_part_pose` insertion targets and corresponding
+  `world_insertion_frame` poses.
+
+The preferred explicit target is the exact desired pose of the native CAD part
+frame in the world, `world_part_pose = ^W T_P*`. Its
+`world_insertion_frame = ^W T_I` supplies the lateral correction X/Y axes and
+the insertion `+Z` direction. Projects migrated from the previous interface may
+instead supply `part_to_pin`, `pcb_world_pose`, and `PCB-to-hole` feature
+transforms. Explicit `targets` and legacy `holes` are mutually exclusive.
 
 STL has no unit metadata. Every STL/OBJ/STEP entry must declare units or an
 explicit scale. MuJoCo uses metres and radians.
@@ -116,6 +129,13 @@ pose. Mesh sources still obey the convex-hull rule above, so concave equipment
 should be supplied as separately exported convex entries in
 `additional_collision_cad`.
 
+`parts.<part>.cad` remains the actual-triangle source for grasp generation and
+stable placement. An optional complete `parts.<part>.collision_cad` replaces
+only the MuJoCo part collision geoms; with
+`collision_cad_static_assembly: true`, disconnected exported convex pieces are
+compiled separately. That collision model must cover the body and pins—a
+pin-only file would omit palm/body clearance.
+
 The current workcell visual uses the complete source STL split into chunks.
 The current gripper visual also uses the complete source STL. Its eight
 connected components are all loaded as fixed collision geoms for each robot.
@@ -139,7 +159,7 @@ aperture range from its slide/prismatic joint limits and maps each candidate's
 contact separation to finger joint positions. Named pad geometry should then
 replace the static-holder contact allowance.
 
-## 3. Frame contract and feature-derived insertion
+## 3. Frame contract and explicit insertion targets
 
 All poses use `^X T_Y`: a transform mapping coordinates in frame `Y` into
 frame `X`. A grasp is
@@ -159,31 +179,47 @@ $$
 The project manifest stores the equivalent startup `^E T_P`; the simulator
 uses its inverse consistently at the boundary.
 
-Insertion is not configured as a hand-tuned world part pose. For PCB frame
-`C`, hole frame `H`, and part pin frame `F`, feature equality gives
+For insertion target $k$, the preferred user interface supplies the exact
+desired native-part pose and an independent insertion/correction frame:
 
 $$
-{}^W T_P^{ins},{}^P T_F
-= {}^W T_C,{}^C T_H,
+{}^W T_P^{*,k}=\texttt{world\_part\_pose},
+\qquad
+{}^W T_{I_k}=\texttt{world\_insertion\_frame}.
+$$
+
+The X/Y axes of $I_k$ define lateral corrections and its `+Z` axis points in
+the insertion direction. With $a_k={}^W R_{I_k}e_z$, the pre-insertion pose
+keeps the exact target orientation and uses
+
+$$
+R_P^{pre,k}=R_P^{*,k},
+\qquad
+t_P^{pre,k}=t_P^{*,k}-d_{app}\,{}^W R_{I_k}e_z.
+$$
+
+Thus approach and correction semantics are independent of world `+Z` and of
+the native part axes. Correction-envelope translations are expressed in
+$I_k$, and yaw is a left-applied world rotation about $a_k$.
+
+The retained legacy mode compiles the same two internal quantities from PCB
+frame `C`, hole frame `H`, and part pin frame `F`. Feature equality gives
+
+$$
+{}^W T_P^{*}\,{}^P T_F
+= {}^W T_C\,{}^C T_H,
 $$
 
 and therefore
 
 $$
-\boxed{{}^W T_P^{ins}
-= {}^W T_C,{}^C T_H\,({}^P T_F)^{-1}}.
+\boxed{{}^W T_P^{*}
+= {}^W T_C\,{}^C T_H\,({}^P T_F)^{-1}}.
 $$
 
-The hole's `+Z` axis is defined to point into the hole. If
-$a_H={}^W R_H e_z$, the pre-insertion translation is
-
-$$
-t_P^{pre}=t_P^{ins}-d_{app}a_H.
-$$
-
-This is intentionally relative to the physical hole axis, not world `+Z` and
-not an assumed part axis. Correction-envelope translations are expressed in
-the hole frame and yaw is a left-applied world rotation about $a_H$.
+In that mode the compiler sets $^W T_I={}^W T_H$, so the same pre-insertion and
+correction equations apply. Both the final part origin and its generated
+pre-insertion origin must lie in `regions.insertion`.
 
 ## 4. Geometry-derived grasps
 
@@ -219,7 +255,7 @@ direction). Right multiplication rotates about the TCP and is incorrect for
 
 ### 5.1 Offline/cached downstream factorization
 
-For every receiver grasp, B is checked at the scanner and every feature-derived
+For every receiver grasp, B is checked at the scanner and every configured
 pre-insertion/insertion target. The witness includes:
 
 - FK-verified multi-seed numerical IK;
@@ -319,12 +355,34 @@ contact is phase-specific and bounded:
 - a static holder may contact the part only through
   `<robot>_gripper_collision_*`, never through link 6 or the wrist;
 - holder penetration is capped at 0.75 mm in the current fallback policy;
-- placement temporarily permits only the part/reorientation-surface pair; and
-- geometric insertion temporarily permits only the part/PCB pair.
+- placement permits the part/reorientation-surface pair with at most 50 µm of
+  numerical overlap, while gripper/support penetration remains zero; and
+- the generated PCB fallback is segmented around one bounded virtual aperture;
+  its surrounding part/`pcb_board*` pair permits at most 10 µm of numerical
+  overlap. Declared fixture collision CAD permits its
+  semantic part/fixture pair only at nonnegative signed distance; penetration
+  tolerance is zero.
 
 These allowances do not disable other contacts. Gripper-to-gripper,
 gripper-to-wrist, wrist-to-part, robot-to-cell, and unexpected fixture contacts
-remain visible to the checker.
+remain visible to the checker. The virtual aperture makes the reference seated
+pose planable without broadly disabling PCB/support collision, but it is not
+proof that individual pins can enter their holes. Final physical collision
+certification still requires actual hole/chamfer, part-pin, and surrounding
+fixture collision CAD.
+
+Joint-space edges are collision sampled at no more than 0.01 rad per joint.
+The executor samples more densely in time and remains authoritative; any
+runtime contact missed by the bounded planner aborts execution.
+
+Execution reports transactional event timestamps, explicit wall-time stage
+profiles, and a separate robot-operation schedule. Geometric robot time is
+integrated from joint displacement, GP7 velocity limits, phase speed fractions,
+and configured dwell. It is invariant to collinear collision-waypoint
+densification. The serial modeled makespan is marked incomplete while calibrated
+gripper/scanner/PLC durations and controller acceleration/jerk/blending remain
+unknown. Observed wall time measures this computer, viewer, pacing, and optional
+diagnostics; it is not robot cycle time.
 
 Execution is transactional: A owns the part, B approaches under the co-grasp
 policy, capture is checked, ownership transfers atomically, A retreats, B moves
@@ -336,10 +394,14 @@ finger-contact dynamics.
 
 ## 7. Content-addressed offline computation and measured latency
 
+For the reproducible cold/warm build sequence, alternate-project paths,
+fingerprints, invalidation, and qualification commands, see
+[Building MuJoCo offline tables and policies](mujoco_offline_policies.md).
+
 Artifacts are canonical JSON stored by SHA-256 key. Keys include an artifact
 version, source CAD/scene fingerprints, relevant project/task transforms,
 solver parameters, and upstream artifact identities. A CAD, calibration,
-feature-frame, or solver change therefore produces a new key instead of
+insertion target/frame, or solver change therefore produces a new key instead of
 silently reusing stale feasibility.
 
 The production pass materializes the known-start direct-first policy:
@@ -359,7 +421,7 @@ Reference snapshot measured on 2026-07-12 on the Mac Studio for project
 fingerprint `aaff9b2dfcdbb71721f6fe8776d8bf0fbdceb892ab55ac403f04cb47acfef9f0`
 and solver fingerprint
 `d652ff9f31a7181d1dbdb6ba37bd2c201d8a76a3afddbb1dc9d656accd451139`
-(downstream v4, direct v7, stable pose v4, reorientation v7):
+(downstream v6, direct v10, stable pose v4, reorientation v10):
 
 | Operation | Current measurement |
 |---|---:|
@@ -419,13 +481,13 @@ python scripts/precompute_pipeline.py --project mujoco_sim/project.yaml \
   --model mujoco_sim/models/scene.xml --production
 ```
 
-Run the focused implementation tests (the environment uses direct executable
+Run the tiered implementation tests (the environment uses direct executable
 test files; `pytest` is not required):
 
 ```bash
-for test in tests/test_mujoco*.py tests/test_geometry_grasps.py tests/test_motion_planning.py; do
-  python "$test" || exit 1
-done
+python scripts/run_mujoco_tests.py --tier t1
+python scripts/run_mujoco_tests.py --tier t2
+python scripts/run_mujoco_tests.py --tier t3
 ```
 
 Plan/execute headlessly:
@@ -481,9 +543,9 @@ reference project cannot be physically certified because:
 1. the gripper is a static STL with no articulated fingers or measured pad
    contact dynamics;
 2. the PCB is a solid collision board and `insertion.collision_cad` does not
-   provide actual hole/chamfer geometry;
-3. the part has no separate pin collision model or calibrated pin/hole/contact
-   materials; and
+   provide actual hole/chamfer and surrounding fixture geometry;
+3. the part has no complete convex-decomposed body/pin collision model or
+   calibrated pin/hole/contact materials; and
 4. execution still uses ideal weld ownership and virtual capture/insertion
    predicates rather than an articulated contact controller.
 
@@ -492,8 +554,9 @@ coverage must report `physical_certified: false` (and the precompute summary's
 `physical_certification.certified` is also false).
 
 Additional production work includes measured friction/COM, calibrated
-uncertainty, real aperture/force feedback, scanner noise, actual fixture and
-pin/hole collision CAD, and hardware validation of stopping distances.
+uncertainty, real aperture/force feedback, scanner noise, actual fixture,
+part-pin, and hole/chamfer collision CAD, and hardware validation of stopping
+distances.
 
 ## 10. Learning: useful, but outside the safety boundary
 

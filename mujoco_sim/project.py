@@ -78,18 +78,25 @@ class SupportRegion:
 
 @dataclass(frozen=True)
 class InsertionTarget:
-    """Part targets derived from equality of a semantic pin and hole frame.
+    """Exact part target plus the frame that defines insertion corrections.
 
     ``insertion_axis_world`` points *into* the hole.  The pre-insertion part
     pose is offset in the opposite direction, irrespective of world/PCB
-    orientation.
+    orientation.  ``T_W_I`` is the user-supplied insertion frame in explicit
+    mode and the derived hole frame in legacy feature-frame mode.  Its X/Y
+    axes define lateral corrections and its +Z axis defines insertion.
     """
 
     name: str
-    T_W_H: np.ndarray
+    T_W_I: np.ndarray
     T_W_P_insert: np.ndarray
     T_W_P_preinsert: np.ndarray
     insertion_axis_world: np.ndarray
+
+    @property
+    def T_W_H(self) -> np.ndarray:
+        """Backward-compatible alias for the insertion/correction frame."""
+        return self.T_W_I
 
 
 class Project:
@@ -106,6 +113,10 @@ class Project:
             raise ValueError("unsupported solver schema_version")
         self._validate_assets()
         self._validate_qualification_domain()
+        self._validate_insertion_schema()
+        # Compile immediately so malformed poses and targets outside the
+        # declared insertion volume fail at project-load time.
+        self.insertion_targets()
 
     def resolve_asset(self, path: str) -> str:
         """Resolve repository-relative or project-local manifest assets."""
@@ -133,7 +144,10 @@ class Project:
         paths += [gripper["model"] for gripper in self.manifest["grippers"].values()]
         paths += [self.manifest["workstation"]["visual_cad"],
                   self.manifest["workstation"]["collision_cad"]]
-        paths += [part["cad"] for part in self.manifest["parts"].values()]
+        for part in self.manifest["parts"].values():
+            paths.append(part["cad"])
+            if part.get("collision_cad"):
+                paths.append(part["collision_cad"])
         for item in self.manifest["workstation"].get("additional_collision_cad", []):
             paths.append(item if isinstance(item, str)
                          else item.get("cad", item.get("path")))
@@ -164,6 +178,114 @@ class Project:
                 "qualification.initial_grasp_domain.source must be one of "
                 f"{sorted(supported)}, got {source!r}"
             )
+
+    @staticmethod
+    def _validate_named_entries(entries: Any, *, label: str,
+                                required_poses: tuple[str, ...]) -> None:
+        if not isinstance(entries, list) or not entries:
+            raise ValueError(f"{label} must be a non-empty list")
+        names: set[str] = set()
+        for index, entry in enumerate(entries):
+            context = f"{label}[{index}]"
+            if not isinstance(entry, dict):
+                raise ValueError(f"{context} must be a mapping")
+            name = entry.get("name")
+            if not isinstance(name, str) or not name.strip():
+                raise ValueError(f"{context}.name must be a non-empty string")
+            if name in names:
+                raise ValueError(f"duplicate insertion target name {name!r}")
+            names.add(name)
+            for pose_name in required_poses:
+                if pose_name not in entry:
+                    raise ValueError(f"{context} requires {pose_name}")
+                try:
+                    _pose(entry[pose_name])
+                except (KeyError, TypeError, ValueError) as error:
+                    raise ValueError(
+                        f"{context}.{pose_name} is not a valid SE(3) pose: {error}"
+                    ) from error
+
+    def _validate_insertion_schema(self) -> None:
+        insertion = self.manifest.get("insertion")
+        if not isinstance(insertion, dict):
+            raise ValueError("project must define an insertion mapping")
+
+        explicit = "targets" in insertion
+        feature_frame = "holes" in insertion
+        if explicit and feature_frame:
+            raise ValueError(
+                "insertion is ambiguous: define either explicit targets or "
+                "legacy holes, not both"
+            )
+        if not explicit and not feature_frame:
+            raise ValueError(
+                "insertion must define either explicit targets or legacy holes"
+            )
+
+        if insertion.get("collision_cad"):
+            collision_pose = insertion.get(
+                "collision_cad_world_pose", insertion.get("pcb_world_pose"))
+            if collision_pose is None:
+                raise ValueError(
+                    "explicit insertion collision CAD requires "
+                    "insertion.collision_cad_world_pose"
+                )
+            try:
+                _pose(collision_pose)
+            except (KeyError, TypeError, ValueError) as error:
+                raise ValueError(
+                    "insertion.collision_cad_world_pose is not a valid SE(3) "
+                    f"pose: {error}"
+                ) from error
+
+        if "insertion" not in self.manifest.get("regions", {}):
+            raise ValueError(
+                "regions.insertion is required to bound insert and pre-insert poses"
+            )
+        # Validate that the declared region is a well-formed box before target
+        # compilation tries to use it.
+        insertion_region = self.region("insertion")
+        if (insertion_region.center.shape != (3,) or
+                insertion_region.size.shape != (3,) or
+                not np.all(np.isfinite(insertion_region.center)) or
+                not np.all(np.isfinite(insertion_region.size)) or
+                np.any(insertion_region.size <= 0.0)):
+            raise ValueError(
+                "regions.insertion center and size must be finite three-vectors; "
+                "size must be positive"
+            )
+
+        if explicit:
+            self._validate_named_entries(
+                insertion["targets"], label="insertion.targets",
+                required_poses=("world_part_pose", "world_insertion_frame"),
+            )
+            return
+
+        if "pcb_world_pose" not in insertion:
+            raise ValueError(
+                "legacy feature-frame insertion requires insertion.pcb_world_pose"
+            )
+        try:
+            _pose(insertion["pcb_world_pose"])
+        except (KeyError, TypeError, ValueError) as error:
+            raise ValueError(
+                f"insertion.pcb_world_pose is not a valid SE(3) pose: {error}"
+            ) from error
+        if "part_to_pin" not in self.active_part:
+            raise ValueError(
+                "legacy feature-frame insertion requires parts.<active>.part_to_pin"
+            )
+        try:
+            _pose(self.active_part["part_to_pin"])
+        except (KeyError, TypeError, ValueError) as error:
+            raise ValueError(
+                f"active part_to_pin is not a valid SE(3) pose: {error}"
+            ) from error
+        self._validate_named_entries(
+            insertion["holes"], label="insertion.holes",
+            required_poses=("pcb_to_hole",),
+        )
 
     @property
     def initial_grasp_domain_source(self) -> str:
@@ -218,10 +340,18 @@ class Project:
 
     @property
     def T_part_pin(self) -> np.ndarray:
+        if "part_to_pin" not in self.active_part:
+            raise ValueError(
+                "T_part_pin is only defined by legacy feature-frame projects"
+            )
         return _pose(self.active_part["part_to_pin"])
 
     @property
     def T_world_pcb(self) -> np.ndarray:
+        if "pcb_world_pose" not in self.manifest["insertion"]:
+            raise ValueError(
+                "T_world_pcb is only available when insertion.pcb_world_pose is declared"
+            )
         return _pose(self.manifest["insertion"]["pcb_world_pose"])
 
     @property
@@ -230,23 +360,17 @@ class Project:
         return _pose(self.manifest["active_task"]["initial_tcp_to_part"])
 
     def insertion_part_poses(self) -> list[tuple[str, np.ndarray]]:
-        """Compile ^W T_P from pin/hole feature equality.
-
-        ^W T_P ^P T_pin = ^W T_C ^C T_hole.
-        """
-        T_W_C = self.T_world_pcb
-        result = []
-        for hole in self.manifest["insertion"]["holes"]:
-            T_C_H = _pose(hole["pcb_to_hole"])
-            result.append((hole["name"], T_W_C @ T_C_H @ inverse(self.T_part_pin)))
-        return result
+        """Return configured ``^W T_P`` insertion poses in target order."""
+        return [(target.name, target.T_W_P_insert.copy())
+                for target in self.insertion_targets()]
 
     def insertion_targets(self, approach_distance_m: float | None = None) -> list[InsertionTarget]:
-        """Compile insertion and pre-insertion poses from pin/hole features.
+        """Compile exact insertion and pre-insertion poses.
 
-        The convention is ``+Z_H`` into the hole.  A pre-insertion pose is
-        therefore translated by ``-d * +Z_H``.  This fixes the former
-        world-``+Z`` assumption, which fails for tilted or underside PCBs.
+        Explicit targets preserve the declared ``world_part_pose`` exactly.
+        Legacy targets first derive that pose by pin/hole feature equality.
+        In both modes, ``+Z_I`` points into the hole, so pre-insertion is
+        translated by ``-d * +Z_I``.  No world-axis assumption is made.
         """
         if approach_distance_m is None:
             approach_distance_m = float(
@@ -256,28 +380,43 @@ class Project:
         if not np.isfinite(distance) or distance <= 0.0:
             raise ValueError("approach_distance_m must be positive and finite")
         targets = []
-        T_W_C = self.T_world_pcb
-        T_P_pin_inv = inverse(self.T_part_pin)
-        for hole in self.manifest["insertion"]["holes"]:
-            T_W_H = T_W_C @ _pose(hole["pcb_to_hole"])
-            T_W_P = T_W_H @ T_P_pin_inv
-            axis = T_W_H[:3, 2].copy()
+        insertion = self.manifest["insertion"]
+        if "targets" in insertion:
+            compiled = [
+                (
+                    item["name"],
+                    _pose(item["world_part_pose"]),
+                    _pose(item["world_insertion_frame"]),
+                )
+                for item in insertion["targets"]
+            ]
+        else:
+            T_W_C = self.T_world_pcb
+            T_P_pin_inv = inverse(self.T_part_pin)
+            compiled = []
+            for hole in insertion["holes"]:
+                T_W_I = T_W_C @ _pose(hole["pcb_to_hole"])
+                compiled.append(
+                    (hole["name"], T_W_I @ T_P_pin_inv, T_W_I)
+                )
+
+        for name, T_W_P, T_W_I in compiled:
+            axis = T_W_I[:3, 2].copy()
             T_W_P_pre = T_W_P.copy()
             T_W_P_pre[:3, 3] -= distance * axis
             targets.append(InsertionTarget(
-                hole["name"], T_W_H, T_W_P, T_W_P_pre, axis
+                name, T_W_I, T_W_P, T_W_P_pre, axis
             ))
-        if "insertion" in self.manifest.get("regions", {}):
-            region = self.region("insertion")
-            for target in targets:
-                if not region.contains(target.T_W_P_insert[:3, 3]):
-                    raise ValueError(
-                        f"insertion target {target.name!r} lies outside regions.insertion"
-                    )
-                if not region.contains(target.T_W_P_preinsert[:3, 3]):
-                    raise ValueError(
-                        f"pre-insertion target {target.name!r} lies outside regions.insertion"
-                    )
+        region = self.region("insertion")
+        for target in targets:
+            if not region.contains(target.T_W_P_insert[:3, 3]):
+                raise ValueError(
+                    f"insertion target {target.name!r} lies outside regions.insertion"
+                )
+            if not region.contains(target.T_W_P_preinsert[:3, 3]):
+                raise ValueError(
+                    f"pre-insertion target {target.name!r} lies outside regions.insertion"
+                )
         return targets
 
 

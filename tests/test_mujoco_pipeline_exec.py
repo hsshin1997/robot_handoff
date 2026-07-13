@@ -60,14 +60,16 @@ def test_continuous_monitor_aborts_part_fixture_penetration():
     run.owner = None
     run.owner_grasp = np.eye(4)
     X = np.eye(4)
-    # Deliberately place the part through the solid PCB placeholder.
-    X[:3, 3] = [0.425, -0.455, 0.346]
+    # Deliberately place the part through the surrounding PCB collision ring,
+    # outside the bounded virtual insertion aperture.
+    X[:3, 3] = [0.470, -0.455, 0.346]
     run.fixed_part_pose = X
     try:
         run._move("B", sim.arm_qpos("B"), 0.1, minimum_time=0.003,
                   allowed_part_holders=())
     except UnexpectedCollision as error:
-        assert set(error.pair) == {"part_collision", "pcb_board"}
+        assert "part_collision" in error.pair
+        assert any(name.startswith("pcb_board_") for name in error.pair)
         assert error.penetration > 0.0
     else:
         raise AssertionError("execution stepped through an unexpected collision")
@@ -82,6 +84,24 @@ def test_force_guard_recognizes_numbered_part_chunks_only():
     assert lookalike_contacts == [
         ("part_collision_fixture", "guard_obstacle")
     ]
+
+
+def test_executor_requires_one_shared_simulation_state():
+    first = WorkcellSim()
+    second = WorkcellSim()
+    planner = HandoffPlanner(second)
+    try:
+        PipelineExecutor(first, planner)
+    except ValueError as error:
+        assert "share one WorkcellSim" in str(error)
+    else:
+        raise AssertionError("executor accepted a planner from another MjData")
+
+
+def test_executor_clock_starts_when_execution_starts_not_at_construction():
+    sim, run = executor()
+    assert run.started is None
+    assert run._elapsed() == 0.0
 
 
 if __name__ == "__main__":

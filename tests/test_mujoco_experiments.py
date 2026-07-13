@@ -53,7 +53,7 @@ def test_current_project_preflights_block_before_any_trial_or_plan_search():
         "transport_speed": ("static mesh", "contact_material"),
         "cograsp_tolerance": ("static mesh", "contact_material"),
         "insertion_funnel": (
-            "static mesh", "collision_cad", "pin_collision_cad", "contact_materials",
+            "static mesh", "complete collision_cad", "contact_materials",
         ),
     }
     for name in MODULES:

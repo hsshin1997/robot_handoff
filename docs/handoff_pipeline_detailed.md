@@ -21,11 +21,17 @@ The user-owned `project.yaml` supplies:
 - articulated robot URDF/MJCF assets and calibrated base transforms;
 - reusable gripper asset and flange/TCP semantics;
 - workstation visual and collision CAD;
-- part CAD, mass, and the part-to-pin feature transform;
+- part CAD and mass;
 - a known initial part/grasp state;
 - the finite source for offline admissible initial-grasp classes;
 - bounded handoff, scanner, reorientation, and insertion regions; and
-- PCB pose plus PCB-to-hole feature transforms.
+- exact world-frame part insertion targets and their insertion/correction
+  frames.
+
+The preferred insertion input is `world_part_pose = ^W T_P*` together with
+`world_insertion_frame = ^W T_I`. A legacy compiler also accepts a part-to-pin
+feature, PCB pose, and PCB-to-hole feature transforms. These explicit and
+legacy forms are alternative schemas, not simultaneous constraints.
 
 The system-owned `solver_defaults.yaml` supplies sampling budgets, numerical
 tolerances, uncertainty/clearance policy, motion-planning bounds, and execution
@@ -61,9 +67,10 @@ frames are:
 | $A_0,B_0$ | robot base frames |
 | $E_A,E_B$ | robot TCP frames |
 | $P$ | native part CAD frame |
+| $I_k$ | insertion/correction frame for target $k$ |
 | $F$ | functional part pin frame |
 | $C$ | PCB frame |
-| $H_k$ | hole frame for insertion target $k$ |
+| $H_k$ | legacy hole feature frame for target $k$ |
 | $N$ | reorientation support frame |
 
 Robot FK is $^{R_0}T_E=f_R(q_R)$. World FK is
@@ -150,6 +157,12 @@ primitives or separate convex pieces. A connected-component split is not a
 general convex decomposition, although it is still safer than replacing a
 multi-body tool with one coarse palm box.
 
+The visual `parts.<part>.cad` remains the actual-triangle surface used by the
+grasp and stable-placement computations. A complete optional
+`parts.<part>.collision_cad` replaces only the MuJoCo collision geoms and may
+be exported as disconnected convex pieces. It must include both body and pins;
+a pin-only collision file would leave body/palm clearance unmodeled.
+
 The current static gripper STL contains eight connected surface components.
 All eight are loaded for each gripper's collision checks. They are fixed to one
 body and each has convex-hull contact. Consequently the model can reject
@@ -229,63 +242,78 @@ ownership; it is not physically certifiable.
 
 ## 4. Functional insertion targets
 
-The user supplies a part pin feature $^{P}T_F$, a PCB pose $^{W}T_C$, and each
-hole feature $^{C}T_{H_k}$. Insertion aligns the feature frames:
+For each target $k$, the preferred explicit schema supplies
 
 $$
-{}^W T_P^{ins,k}\,{}^P T_F
+\boxed{{}^W T_P^{*,k}=\texttt{world\_part\_pose}},
+\qquad
+\boxed{{}^W T_{I_k}=\texttt{world\_insertion\_frame}}.
+$$
+
+$^{W}T_P^{*,k}$ is the exact desired pose of the native CAD part frame. It is
+not inferred or projected by the planner. The axes of $I_k$ carry the motion
+semantics: X/Y are lateral correction axes and `+Z` is the direction of
+insertion. Define
+
+$$
+a_k={}^W R_{I_k}e_z.
+$$
+
+The pre-insertion pose retains the exact target orientation and translates
+opposite that physical insertion direction:
+
+$$
+R_P^{pre,k}=R_P^{*,k},
+\qquad
+\boxed{t_P^{pre,k}=t_P^{*,k}-d_{app}\,{}^W R_{I_k}e_z}.
+$$
+
+This separates the desired part orientation from the approach direction. In
+particular, neither world `+Z` nor a native part axis is assumed.
+
+For backward compatibility, legacy feature-frame projects supply a part pin
+feature $^{P}T_F$, a PCB pose $^{W}T_C$, and each hole feature
+$^{C}T_{H_k}$. The compiler aligns those feature frames:
+
+$$
+{}^W T_P^{*,k}\,{}^P T_F
 = {}^W T_C\,{}^C T_{H_k}.
 $$
 
 Therefore
 
 $$
-\boxed{{}^W T_P^{ins,k}
+\boxed{{}^W T_P^{*,k}
 = {}^W T_C\,{}^C T_{H_k}\,({}^P T_F)^{-1}}.
 $$
 
-This equation replaces per-part hard-coded insertion world poses.
+It then sets $^W T_{I_k}= {}^W T_C{}^C T_{H_k}$. Consequently explicit and
+legacy targets enter the same planner representation and use the same
+pre-insertion and correction equations. A manifest must select exactly one
+mode; providing both `targets` and `holes` is rejected as ambiguous.
 
-Let
-
-$$
-{}^W T_{H_k}={}^W T_C{}^C T_{H_k},
-\qquad a_k={}^W R_{H_k}e_z,
-$$
-
-where hole `+Z` is defined to point into the hole. The pre-insertion pose keeps
-the insertion orientation and moves opposite the physical hole axis:
-
-$$
-R_P^{pre,k}=R_P^{ins,k},
-\qquad
-t_P^{pre,k}=t_P^{ins,k}-d_{app}a_k.
-$$
-
-The former shortcut $X_{ins}\operatorname{Trans}(0,0,-d)$ is not generally
-correct because it offsets along a part-frame axis, which need not equal the
-hole axis.
-
-Both $t_P^{pre,k}$ and $t_P^{ins,k}$ must lie inside the manifest-declared
+Both $t_P^{pre,k}$ and $t_P^{*,k}$ must lie inside the manifest-declared
 insertion region. This is a task-space admissibility bound, not a replacement
-for the pin/hole frame equality or collision checking.
+for collision checking. A valid transform and admissible origin also do not
+prove physical insertability: that requires actual pin, hole/chamfer, PCB, and
+surrounding fixture collision CAD.
 
 ### 4.1 Axis-relative correction envelope
 
 For a correction vertex
-$\delta p_H=(\delta x,\delta y,\delta z)$ and hole-axis yaw $\delta\psi$,
+$\delta p_I=(\delta x,\delta y,\delta z)$ and insertion-axis yaw $\delta\psi$,
 
 $$
-t'_P=t_P^{ins}+{}^W R_H\delta p_H,
+t'_P=t_P^{*,k}+{}^W R_{I_k}\delta p_I,
 $$
 
 $$
-R'_P=\exp([a_H]_\times\delta\psi)R_P^{ins}.
+R'_P=\exp([a_k]_\times\delta\psi)R_P^{*,k}.
 $$
 
 The current four-dimensional box has positive/negative lateral, axial, and yaw
-limits, producing $2^4=16$ vertices. It is relative to each configured hole,
-not world `Z`.
+limits, producing $2^4=16$ vertices. It is relative to each configured
+insertion frame, not world `Z`.
 
 At nominal insertion joint state $q^{ins}$, a first-order gain screen uses
 
@@ -316,7 +344,7 @@ $$
 `DownstreamFeasible` requires:
 
 - scanner IK and margins;
-- pre-insertion and insertion IK at every hole;
+- pre-insertion and insertion IK at every configured target;
 - wrist-dither reserve;
 - all 16 correction vertices with branch-continuous IK;
 - scanner-to-preinsert and insertion motion paths;
@@ -448,11 +476,19 @@ Expected contact is permitted only for named phase semantics:
 - a holder may contact the part only with its gripper collision components;
 - it may never hide part contact with link 6, wrist, or another arm link;
 - current static-holder penetration is bounded to 0.75 mm;
-- placement permits only the part/support-surface pair; and
-- geometric insertion permits only the part/PCB pair.
+- placement permits the part/support-surface pair with at most 50 µm of
+  numerical overlap, while gripper/support penetration remains zero; and
+- only the segmented PCB fallback permits the part/`pcb_board*` ring pair,
+  bounded to 10 µm; its central virtual aperture and support relief remain
+  non-certifying placeholders for the real holes. Declared fixture collision
+  CAD permits its semantic part/fixture pair
+  only at nonnegative signed distance; penetration tolerance is zero.
 
 Every other contact remains a hard failure. An allowed pair is not a global
-collision disable and does not exempt deep penetration.
+collision disable and does not exempt deep penetration. Nor does this
+phase-specific allowance certify the insertion geometry: physical collision
+certification still requires modeled part pins, hole/chamfer geometry, and the
+surrounding fixture CAD.
 
 With an articulated gripper, named pad geoms should replace the broad static
 `gripper_collision_*` holder allowance.
@@ -576,14 +612,16 @@ For selected direct plan $h^*$:
 5. Ownership transfers transactionally from A to B.
 6. A follows its checked retreat.
 7. B moves to the scanner.
-8. The measured post-scan $g_B$ recomputes every downstream TCP target.
-9. Correction and path gates are rerun if the measured grasp changes.
-10. B follows pre-insertion and insertion paths.
+8. A moves from the short retreat to its checked insertion-park state.
+9. The measured post-scan $g_B$ recomputes every downstream TCP target.
+10. Correction and path gates are rerun if the measured grasp changes.
+11. B follows pre-insertion and insertion paths with A parked.
 
 For reorientation, prepend checked place, release, retreat/re-approach,
 re-pick, capture, and lift/transit paths.
 
-The executor checks collision at every replay waypoint. An unexpected contact
+The executor checks collision at every replay integration sample, including
+the co-grasp dwell. An unexpected contact
 raises an abort and prevents the next state transition. This continuous monitor
 is independent of the planner's prior result and protects against corrupted or
 modified trajectories.
@@ -628,6 +666,36 @@ CAD/scene identity
 Reachability maps and reusable motion roadmaps can be added at the same offline
 tier. They are rejectors/proposals; exact online gates remain authoritative.
 
+### 10.1 Profiling, modeled time, and concurrency
+
+Computer latency and robot cycle time are separate quantities. Hierarchical
+spans report setup, cache, IK, motion-planning, execution, viewer/pacing, and
+diagnostic wall time. Inclusive time contains children; exclusive/self time is
+used to rank computational bottlenecks.
+
+The current geometric trajectory model sums, for path segments $i$,
+
+$$
+t_{model}=1.5\sum_i\max_j
+\frac{|q_{i+1,j}-q_{i,j}|}{s\,\dot q^{max}_j},
+$$
+
+where $s\in(0,1]$ is the phase speed fraction and 1.5 is the peak slope of the
+cubic smoothstep. Collinear path subdivision leaves this value unchanged;
+collision sampling density is therefore independent of modeled robot time.
+This is not a controller-matched minimum-time law because acceleration, jerk,
+blending, payload derating, and settling are absent.
+
+Robot operations form a resource/dependency DAG. The current plan is scheduled
+serially because every stored path was certified with a particular simultaneous
+state of the other arm. Parallel A/B execution is permitted only after a
+coordinated planner certifies the full time-indexed
+$(q_A(t),q_B(t),X_P(t))$ path and supplies one shared collision-certificate ID.
+Cycle optimization must minimize the scheduled critical-path makespan, not the
+sum of both arms' work. Gripper, scanner, and PLC operations with unknown
+duration are explicit unmodeled nodes, making the estimate incomplete rather
+than silently assigning zero hardware latency.
+
 The 2026-07-12 Mac Studio snapshot for project fingerprint
 `aaff9b2dfcdbb71721f6fe8776d8bf0fbdceb892ab55ac403f04cb47acfef9f0`
 and solver fingerprint
@@ -666,10 +734,16 @@ $$
 \frac{|\mathcal D_{direct}|+|\mathcal D_{reorient}|}{|\mathcal D|}.
 $$
 
-The implementation marks a report certified only when $\gamma$ meets or exceeds
+The implementation marks mathematical coverage when $\gamma$ meets or exceeds
 the requested target, normally 1.0. “100%” is therefore scoped to $\mathcal D$
 and the fingerprinted model/policy. It is not a claim over all continuous
 poses, unmodeled obstacles, arbitrary parts, or calibration drift.
+
+Physical certification is fail-closed: the complete named prerequisite schema
+must be supplied as strict booleans, every prerequisite must be true, and the
+entire declared domain must be covered even if a lower mathematical acceptance
+target was requested. Missing, partial, unknown, or truthy-string prerequisite
+data cannot promote a mathematical result to physical truth.
 
 The ordinary demo/run covers only its known-start singleton. The project
 manifest separately declares whether the offline domain is only that state or
@@ -682,16 +756,18 @@ because:
 
 - its gripper is a static STL without finger joints or physical aperture/
   contact validation;
-- its PCB is a solid collision board without actual hole/chamfer collision CAD;
-- the part has no separate pin collision model or calibrated contact materials;
-  and
+- its PCB is a segmented virtual-aperture placeholder without actual
+  pin-hole/chamfer and
+  surrounding fixture collision CAD;
+- the part has no complete convex-decomposed body/pin collision model or
+  calibrated contact materials; and
 - the current executor still uses ideal weld ownership and virtual capture/
   insertion predicates.
 
 Physical certification additionally needs calibrated transforms and uncertainty,
 measured COM/friction, real gripper/force feedback, sensor error models,
-pin/hole geometry, hardware stopping-distance validation, and coverage over the
-declared production domain.
+part-pin/hole/chamfer and fixture geometry, hardware stopping-distance
+validation, and coverage over the declared production domain.
 
 ## 12. Learning: proposal acceleration only
 
@@ -723,10 +799,10 @@ reachability, capture, or physical certification.
 
 ```text
 OFFLINE_OR_AFTER_CONTENT_CHANGE(project):
-    fingerprint CAD, calibration, feature frames, and solver policy
+    fingerprint CAD, calibration, insertion targets/frames, and solver policy
     normalize/tessellate exact visual CAD; prepare collision models
     G_A, G_B <- geometry antipodal contact grasps
-    B_star <- downstream_filter(G_B, scanner, pin/hole targets,
+    B_star <- downstream_filter(G_B, scanner, configured insertion targets,
                                 correction envelope, IK, collision, motion)
     P <- COM/support/footprint-valid stable stage placements
     cache all artifacts by content key
@@ -758,7 +834,7 @@ EXECUTE(plan):
     enforce capture-before-release transaction
     scan/recompute held grasp and downstream TCP targets
     revalidate correction/path when the measured grasp changes
-    approach/insert along configured hole axis
+    approach/insert along configured insertion-frame +Z axis
 ```
 
 ## 14. Corrections relative to the original prototype
@@ -770,8 +846,8 @@ EXECUTE(plan):
 | Both grippers targeted the part center | Generate distinct antipodal contact pairs across the native surface |
 | Co-grasp used a palm proxy/ignored gripper collision | Check all current eight static components plus contact-patch occupancy |
 | Holder allowance hid wrist/part contact | Permit only named/bounded gripper-part contact |
-| Pre-insertion assumed world/part Z | Offset opposite each semantic hole `+Z` axis |
-| Correction yaw assumed world Z | Rotate about each physical hole axis |
+| Pre-insertion assumed world/part Z | Offset opposite each configured insertion-frame `+Z` axis |
+| Correction yaw assumed world Z | Rotate about each configured insertion axis |
 | Reorientation score mixed TCP and part frames | Compare $R_h$ with $R_{ins}$ |
 | Reorientation interpolated unchecked joints | Adaptive edge validation, then bounded RRT-Connect |
 | Re-pick was not tied to downstream success | Search backward from insertion-feasible B grasps |
@@ -781,10 +857,11 @@ EXECUTE(plan):
 
 The current direct visualization and the forced adverse-grasp reorientation
 visualization both use planner-produced, collision-checked paths. The forced
-demo refuses to run if the initial grasp is not rejected as intended, if no
-stable placement/re-pick path exists, or if the re-picked A grasp lacks a
-verified edge to an insertion-feasible B grasp. Regression tests also inject
-unexpected part/fixture collision and verify execution abort.
+demo explicitly selects a verified stage route for inspection even if the
+direct-first production planner could also solve that rotated grasp. It refuses
+to run if no stable placement/re-pick path connects to an insertion-feasible B
+grasp. Regression tests require both branches to execute to `COMPLETE`, and
+separately inject unexpected part/fixture collision to verify execution abort.
 
 Run the canonical workflow from the repository root:
 
@@ -794,7 +871,10 @@ python scripts/prepare_project_cad.py --project mujoco_sim/project.yaml
 python scripts/build_mujoco_scene.py
 python scripts/precompute_pipeline.py --project mujoco_sim/project.yaml \
   --model mujoco_sim/models/scene.xml --production
-python -m mujoco_sim.pipeline --execute --json
+python scripts/run_mujoco_tests.py --tier t1
+python scripts/run_mujoco_tests.py --tier t2
+python scripts/run_mujoco_tests.py --tier t3
+python -m mujoco_sim.pipeline --execute --profile --json
 ```
 
 On macOS, visualize with:
