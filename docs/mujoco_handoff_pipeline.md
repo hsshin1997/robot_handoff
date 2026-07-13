@@ -223,7 +223,7 @@ pre-insertion origin must lie in `regions.insertion`.
 
 ## 4. Geometry-derived grasps
 
-`geometry_grasps.py` parses the part STL in its native CAD frame and generates
+`modeling/grasps.py` consumes the part mesh in its native CAD frame and generates
 parallel-jaw contact pairs as follows:
 
 1. deterministically sample the surface, stratified by triangle area;

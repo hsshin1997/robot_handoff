@@ -13,8 +13,8 @@ from typing import Any
 
 import numpy as np
 
-from ..collision import CollisionPolicy
-from ..planning_types import DirectHandoffPlan, DownstreamWitness
+from ...simulation.collision import CollisionPolicy
+from ..types import DirectHandoffPlan, DownstreamWitness
 
 
 class DirectCandidateEvaluator:

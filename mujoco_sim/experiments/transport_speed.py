@@ -25,7 +25,7 @@ from mujoco_sim.experiments._common import (  # noqa: E402
     print_blocked,
     transport_preflight,
 )
-from mujoco_sim.project import DEFAULT_PROJECT  # noqa: E402
+from mujoco_sim.modeling.project import DEFAULT_PROJECT  # noqa: E402
 
 
 def build_parser() -> argparse.ArgumentParser:

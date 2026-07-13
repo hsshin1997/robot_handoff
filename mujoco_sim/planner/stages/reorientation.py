@@ -6,8 +6,8 @@ from typing import Protocol
 
 import numpy as np
 
-from ..planning_types import RegraspPlan
-from ..se3 import inverse
+from ..types import RegraspPlan
+from ...core.se3 import inverse
 from ..task_graph import (DirectCoGraspEdge, InitialGraspClass,
                           PlacementGraspEdge, TaskGraph)
 

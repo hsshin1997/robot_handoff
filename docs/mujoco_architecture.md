@@ -5,34 +5,69 @@ method remains in
 [handoff_pipeline_detailed.md](handoff_pipeline_detailed.md); the operator
 commands remain in [mujoco_user_guide.md](mujoco_user_guide.md).
 
-## 1. Dependency direction
+## 1. Package layout and dependency direction
+
+Implementation code is grouped by responsibility. Files directly under
+`mujoco_sim/` are intentionally tiny compatibility aliases or established
+`python -m` launchers; new algorithm code belongs in one of these packages:
 
 ```text
+mujoco_sim/
+├── core/           SE(3), uncertainty, stable paths, profiling
+├── modeling/       project manifest, CAD, mesh, gripper, grasps, placements
+├── simulation/     MuJoCo state, GP7 kinematics, collision/contact policy
+├── planner/        planner facade, contracts, motion, task graph, stages
+│   └── stages/     direct, downstream, and reorientation searches
+├── execution/      executor state machine, schedule, and timing model
+├── offline_tools/  artifact cache, precomputation, and qualification
+├── diagnostics/    debug artifacts and contact-path audit
+├── apps/           pipeline/viewer/visualization implementations
+├── experiments/    qualification experiments
+├── models/         compiled MJCF and generated CAD
+└── *.yaml          stable user/system configuration locations
+```
+
+The dependency direction is kept acyclic:
+
+```text
+core -> offline artifact primitives -> modeling -> simulation
+                                            |          |
+                                            +----+-----+
+                                                 v
+                                          planner/planner.py
+                                                 |
+                                                 v
+                                      execution/executor.py
+                                                 |
+                                                 v
+                                      apps and diagnostics
+
 project/CAD/scene
        |
        v
-HandoffPlanner compatibility facade (planning.py)
+HandoffPlanner (`planner/planner.py`; legacy alias `planning.py`)
        |
-       +-- plan records and validation (planning_types.py, plan_validation.py)
-       +-- phase contact policy (phase_contacts.py)
+       +-- plan records and validation (`planner/types.py`, `validation.py`)
+       +-- phase contact policy (`simulation/contact_policies.py`)
        +-- deterministic IK + collision/motion runtime
-       +-- downstream certification (planner_stages/downstream.py)
-       +-- direct search ordering (planner_stages/direct.py)
-       +-- reorientation task graph (planner_stages/reorientation.py)
+       +-- downstream certification (`planner/stages/downstream.py`)
+       +-- direct search ordering (`planner/stages/direct.py`)
+       +-- reorientation task graph (`planner/stages/reorientation.py`)
        |
        v
-PipelineExecutor (exec.py)
-       +-- geometric trajectory timing (trajectory_timing.py)
-       +-- resource/dependency schedule (execution_schedule.py)
+PipelineExecutor (`execution/executor.py`; legacy alias `exec.py`)
+       +-- geometric trajectory timing (`execution/timing.py`)
+       +-- resource/dependency schedule (`execution/schedule.py`)
        +-- transactional state events
        +-- continuous collision monitoring
        +-- debug artifact recorder
 ```
 
-`planning.py` remains the public facade so existing commands, cache payloads,
-and imports continue to work. New stage algorithms should go in
-`planner_stages/`; shared records should go in `planning_types.py`. Do not add
-another search algorithm directly to the facade.
+Legacy imports such as `mujoco_sim.planning`, `mujoco_sim.sim`, and
+`mujoco_sim.se3` resolve to the exact canonical module objects, preserving
+class identity and existing monkeypatch/integration hooks. The five documented
+root launchers delegate to `apps/` or `diagnostics/` while retaining their
+existing command lines. New code should import canonical package modules.
 
 ## 2. Planning stages
 
@@ -154,12 +189,11 @@ limits, gripper/scanner/PLC latency, and stopping-distance trials.
 
 | Goal | Primary module | Required regression |
 |---|---|---|
-| Faster IK | `kinematics.py` / planning runtime | target-keyed determinism and FK residual |
-| Better single-arm path | `motion_planning.py` | exact phase collision replay and endpoints |
-| Faster direct search | `planner_stages/direct.py` | warm/exhaustive completeness and candidate order |
-| Better insertion grasp | `planner_stages/downstream.py` | all targets, correction envelope, parked-A state |
-| Better stage strategy | `planner_stages/reorientation.py` | stable support, place/re-pick, terminal direct edge |
-| Parallel arms | `execution_schedule.py` plus coordinated planner | joint time-indexed collision certificate |
-| Minimum-time trajectory | `trajectory_timing.py` | speed/accel/jerk bounds and density invariance |
-| Runtime visualization | `exec.py` viewer/pacing spans | identical operation graph and safety outcome |
-
+| Faster IK | `simulation/kinematics.py` / planning runtime | target-keyed determinism and FK residual |
+| Better single-arm path | `planner/motion.py` | exact phase collision replay and endpoints |
+| Faster direct search | `planner/stages/direct.py` | warm/exhaustive completeness and candidate order |
+| Better insertion grasp | `planner/stages/downstream.py` | all targets, correction envelope, parked-A state |
+| Better stage strategy | `planner/stages/reorientation.py` | stable support, place/re-pick, terminal direct edge |
+| Parallel arms | `execution/schedule.py` plus coordinated planner | joint time-indexed collision certificate |
+| Minimum-time trajectory | `execution/timing.py` | speed/accel/jerk bounds and density invariance |
+| Runtime visualization | `execution/executor.py` viewer/pacing spans | identical operation graph and safety outcome |

@@ -36,6 +36,7 @@ TIERS = {
         "tests/test_mujoco_learning.py",
     ),
     "t2": (
+        "tests/test_mujoco_package_layout.py",
         "tests/test_mujoco.py",
         "tests/test_mujoco_project.py",
         "tests/test_mujoco_scene.py",

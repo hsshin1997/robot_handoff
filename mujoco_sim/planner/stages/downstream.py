@@ -10,7 +10,7 @@ from typing import Protocol
 
 import numpy as np
 
-from ..planning_types import DownstreamWitness
+from ..types import DownstreamWitness
 
 
 class DownstreamRuntime(Protocol):

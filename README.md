@@ -11,6 +11,8 @@
 > [offline policies guide](docs/mujoco_offline_policies.md). For the modular
 > code map, performance profiler, and dual-arm optimization hooks, see
 > [MuJoCo architecture](docs/mujoco_architecture.md).
+> Contributors can also use the concise
+> [MuJoCo source map](mujoco_sim/README.md) to locate each subsystem.
 
 Part handoff simulation between two Yaskawa GP7 arms (PyBullet, no ROS).
 

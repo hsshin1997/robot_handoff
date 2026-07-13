@@ -6,10 +6,10 @@ import sys
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
-from mujoco_sim.kinematics import GP7Kinematics
-from mujoco_sim.project import DEFAULT_PROJECT, Project
-from mujoco_sim.reachability import ReachabilityMap
-from mujoco_sim.sim import MODEL, WorkcellSim
+from mujoco_sim.simulation.kinematics import GP7Kinematics
+from mujoco_sim.modeling.project import DEFAULT_PROJECT, Project
+from mujoco_sim.planner.reachability import ReachabilityMap
+from mujoco_sim.simulation.workcell import MODEL, WorkcellSim
 
 
 def build_parser():

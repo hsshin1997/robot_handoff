@@ -1,15 +1,14 @@
-"""Independent algorithm stages used by :class:`HandoffPlanner`.
-
-The top-level planner remains a compatibility facade.  New optimization work
-should target these small stage objects instead of adding more responsibilities
-to ``planning.py``.
-"""
-
-from .direct import DirectCandidateEvaluator, DirectHandoffSearch
-from .downstream import DownstreamCertifier
-from .reorientation import ReorientationSearch
+"""Compatibility exports for :mod:`mujoco_sim.planner.stages`."""
+from mujoco_sim.planner.stages import (
+    DirectCandidateEvaluator,
+    DirectHandoffSearch,
+    DownstreamCertifier,
+    ReorientationSearch,
+)
 
 __all__ = [
-    "DirectCandidateEvaluator", "DirectHandoffSearch",
-    "DownstreamCertifier", "ReorientationSearch",
+    "DirectCandidateEvaluator",
+    "DirectHandoffSearch",
+    "DownstreamCertifier",
+    "ReorientationSearch",
 ]

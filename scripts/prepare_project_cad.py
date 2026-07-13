@@ -21,13 +21,13 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from mujoco_sim.cad_preprocess import (  # noqa: E402
+from mujoco_sim.modeling.cad_preprocess import (  # noqa: E402
     COLLISION_WARNING,
     DEFAULT_MAX_FACES_PER_CHUNK,
     CADPreparation,
     prepare_cad,
 )
-from mujoco_sim.offline import (  # noqa: E402
+from mujoco_sim.offline_tools.artifacts import (  # noqa: E402
     atomic_write_json,
     canonical_json_bytes,
     fingerprint_content,

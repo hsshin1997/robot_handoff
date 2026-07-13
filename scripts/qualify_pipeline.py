@@ -20,14 +20,13 @@ import numpy as np
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from mujoco_sim.offline import (atomic_write_json, fingerprint_content,
-                                fingerprint_file)  # noqa: E402
-from mujoco_sim.planning import HandoffPlanner  # noqa: E402
-from mujoco_sim.qualification import (CoverageOutcome,
-                                      build_coverage_certificate,
-                                      physical_prerequisites)  # noqa: E402
-from mujoco_sim.se3 import inverse  # noqa: E402
-from mujoco_sim.sim import MODEL, WorkcellSim  # noqa: E402
+from mujoco_sim.offline_tools.artifacts import (  # noqa: E402
+    atomic_write_json, fingerprint_content, fingerprint_file)
+from mujoco_sim.planner.planner import HandoffPlanner  # noqa: E402
+from mujoco_sim.offline_tools.qualification import (  # noqa: E402
+    CoverageOutcome, build_coverage_certificate, physical_prerequisites)
+from mujoco_sim.core.se3 import inverse  # noqa: E402
+from mujoco_sim.simulation.workcell import MODEL, WorkcellSim  # noqa: E402
 
 
 def qualify(max_classes: int | None = None, required_fraction: float = 1.0,

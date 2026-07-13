@@ -7,7 +7,7 @@ import os
 import sys
 from typing import Any
 
-from mujoco_sim.project import DEFAULT_PROJECT, Project
+from mujoco_sim.modeling.project import DEFAULT_PROJECT, Project
 
 
 @dataclass(frozen=True)
@@ -167,9 +167,9 @@ def load_or_derive_direct_plan(
     Imports are delayed so ``--help`` and blocked preflights do not construct a
     MuJoCo model or trigger an expensive planning search.
     """
-    from mujoco_sim.plan_codec import deserialize_direct
-    from mujoco_sim.plan_validation import validate_direct_plan
-    from mujoco_sim.planning import HandoffPlanner
+    from mujoco_sim.planner.codec import deserialize_direct
+    from mujoco_sim.planner.validation import validate_direct_plan
+    from mujoco_sim.planner.planner import HandoffPlanner
     from mujoco_sim.sim import WorkcellSim
 
     sim = WorkcellSim(project_path=project_path)

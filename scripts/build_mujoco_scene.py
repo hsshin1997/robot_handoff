@@ -25,9 +25,10 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-from mujoco_sim.cad_preprocess import prepare_cad, scale_to_metres  # noqa: E402
-from mujoco_sim.se3 import (make_transform, transform_from_rpy,
-                            validate_transform)  # noqa: E402
+from mujoco_sim.modeling.cad_preprocess import (  # noqa: E402
+    prepare_cad, scale_to_metres)
+from mujoco_sim.core.se3 import (make_transform, transform_from_rpy,
+                                 validate_transform)  # noqa: E402
 
 CONFIG = os.path.join(ROOT, "mujoco_sim", "scene_config.yaml")
 PROJECT_CONFIG = os.path.join(ROOT, "mujoco_sim", "project.yaml")
