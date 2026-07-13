@@ -1,7 +1,7 @@
-"""Legacy launcher for :mod:`mujoco_sim.apps.viewer`."""
-from ._compat import export_module
+"""Stable ``python -m`` launcher for :mod:`mujoco_sim.apps.viewer`."""
+from .apps.viewer import build_parser, main
 
-_implementation = export_module(globals(), "mujoco_sim.apps.viewer")
+__all__ = ["build_parser", "main"]
 
 if __name__ == "__main__":
-    _implementation.main()
+    main()

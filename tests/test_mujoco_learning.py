@@ -9,7 +9,7 @@ import numpy as np
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
-from mujoco_sim.learning import RankedProposal, SafetyGatedRanker  # noqa: E402
+from mujoco_sim.planner.learning import RankedProposal, SafetyGatedRanker  # noqa: E402
 
 
 def test_invalid_high_score_is_never_returned():

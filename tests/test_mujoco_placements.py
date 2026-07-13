@@ -9,8 +9,8 @@ import numpy as np
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
-from mujoco_sim.geometry_grasps import TriangleMesh
-from mujoco_sim.placements import (
+from mujoco_sim.modeling.grasps import TriangleMesh
+from mujoco_sim.modeling.placements import (
     RectangularStage,
     estimate_center_of_mass,
     generate_stable_placements,

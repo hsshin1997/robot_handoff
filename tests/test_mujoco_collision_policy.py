@@ -11,10 +11,10 @@ import numpy as np
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
-from mujoco_sim.collision import (AllowedContact, CollisionPolicy,
+from mujoco_sim.simulation.collision import (AllowedContact, CollisionPolicy,
                                   SceneCollisionChecker)  # noqa: E402
-from mujoco_sim.kinematics import GP7Kinematics  # noqa: E402
-from mujoco_sim.sim import WorkcellSim  # noqa: E402
+from mujoco_sim.simulation.kinematics import GP7Kinematics  # noqa: E402
+from mujoco_sim.simulation.workcell import WorkcellSim  # noqa: E402
 
 
 def checker():

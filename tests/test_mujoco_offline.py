@@ -10,7 +10,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from mujoco_sim.offline import (  # noqa: E402
+from mujoco_sim.offline_tools.artifacts import (  # noqa: E402
     ARTIFACT_CATEGORIES,
     ArtifactCache,
     CacheCorruptionError,

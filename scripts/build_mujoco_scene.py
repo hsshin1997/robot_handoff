@@ -8,8 +8,8 @@ Sources of truth:
   - assets/workcell/workcell.stl (visual CAD, millimetres)
   - assets/workcell/collision_boxes.yaml (stable collision approximation)
   - assets/gp7/gp7.urdf (joint chain, limits, mesh references)
-  - mujoco_sim/project.yaml (user-owned assets, frames, and task regions)
-  - mujoco_sim/scene_config.yaml (current lab primitive-fixture fallback only)
+  - mujoco_sim/config/project.yaml (user-owned assets, frames, and task regions)
+  - mujoco_sim/config/internal/scene_fallback.yaml (current lab primitive-fixture fallback only)
 """
 from __future__ import annotations
 
@@ -27,11 +27,13 @@ if ROOT not in sys.path:
 
 from mujoco_sim.modeling.cad_preprocess import (  # noqa: E402
     prepare_cad, scale_to_metres)
+from mujoco_sim.core.paths import (  # noqa: E402
+    DEFAULT_PROJECT_PATH, DEFAULT_SCENE_CONFIG_PATH)
 from mujoco_sim.core.se3 import (make_transform, transform_from_rpy,
                                  validate_transform)  # noqa: E402
 
-CONFIG = os.path.join(ROOT, "mujoco_sim", "scene_config.yaml")
-PROJECT_CONFIG = os.path.join(ROOT, "mujoco_sim", "project.yaml")
+CONFIG = str(DEFAULT_SCENE_CONFIG_PATH)
+PROJECT_CONFIG = str(DEFAULT_PROJECT_PATH)
 OUTPUT = os.path.join(ROOT, "mujoco_sim", "models", "scene.xml")
 JOINT_SHORT = ("s", "l", "u", "r", "b", "t")
 
@@ -97,7 +99,8 @@ def load_sources(project_path: str = PROJECT_CONFIG):
         cfg = yaml.safe_load(f)
     with open(project_path, encoding="utf-8") as f:
         project = yaml.safe_load(f)
-    # scene_config.yaml owns only the calibrated primitive-fixture fallback;
+    # config/internal/scene_fallback.yaml owns only the calibrated
+    # primitive-fixture fallback;
     # project-owned mappings are initialized here rather than shadowed and
     # overwritten from stale duplicate values in that internal file.
     cfg["robots"] = {}

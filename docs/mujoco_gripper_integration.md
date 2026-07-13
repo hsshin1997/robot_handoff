@@ -28,7 +28,7 @@ triangle surface.
 
 ## Descriptor
 
-Copy `mujoco_sim/gripper_asset.template.yaml` next to the gripper model, then
+Copy `mujoco_sim/config/templates/gripper_asset.template.yaml` next to the gripper model, then
 replace every example name with the exact source-model name. The validator
 checks all of the following before the asset can be adapted:
 
@@ -45,7 +45,7 @@ Validate a descriptor from Python:
 
 ```bash
 python - <<'PY'
-from mujoco_sim.gripper import load_gripper_asset_contract
+from mujoco_sim.modeling.gripper import load_gripper_asset_contract
 
 asset = load_gripper_asset_contract("path/to/gripper_asset.yaml")
 print("model:", asset.model_path)
@@ -97,4 +97,3 @@ and geom names are also shared.
 - Pad/part contact occurs on the supplied pad surfaces, not on a hull proxy.
 - Closing force, capture, slip, release, and insertion-force guards pass.
 - A and B can be instantiated independently without shared-name collisions.
-

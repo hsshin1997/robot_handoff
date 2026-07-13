@@ -13,8 +13,8 @@ import numpy as np
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
-from mujoco_sim.cad_preprocess import prepare_cad, write_binary_stl  # noqa: E402
-from mujoco_sim.part_mesh import (load_obj_triangles,
+from mujoco_sim.modeling.cad_preprocess import prepare_cad, write_binary_stl  # noqa: E402
+from mujoco_sim.modeling.part_mesh import (load_obj_triangles,
                                   load_prepared_triangle_mesh,
                                   load_project_part_mesh)  # noqa: E402
 

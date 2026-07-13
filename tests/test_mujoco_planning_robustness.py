@@ -12,9 +12,9 @@ import numpy as np
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
-import mujoco_sim.planning as planning_module
-from mujoco_sim.geometry_grasps import TriangleMesh
-from mujoco_sim.planning import (
+import mujoco_sim.planner.planner as planning_module
+from mujoco_sim.modeling.grasps import TriangleMesh
+from mujoco_sim.planner.planner import (
     DirectHandoffPlan,
     HandoffPlanner,
     ScoreBreakdown,

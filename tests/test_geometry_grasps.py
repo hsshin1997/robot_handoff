@@ -11,7 +11,7 @@ import numpy as np
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
-from mujoco_sim.geometry_grasps import (
+from mujoco_sim.modeling.grasps import (
     ParallelJawGripper,
     generate_antipodal_grasps,
     load_binary_stl,

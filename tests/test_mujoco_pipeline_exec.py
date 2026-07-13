@@ -11,10 +11,10 @@ import numpy as np
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
-from mujoco_sim.exec import PipelineExecutor, UnexpectedCollision  # noqa: E402
-from mujoco_sim.collision import SceneCollisionChecker  # noqa: E402
-from mujoco_sim.planning import HandoffPlanner  # noqa: E402
-from mujoco_sim.sim import WorkcellSim  # noqa: E402
+from mujoco_sim.execution.executor import PipelineExecutor, UnexpectedCollision  # noqa: E402
+from mujoco_sim.simulation.collision import SceneCollisionChecker  # noqa: E402
+from mujoco_sim.planner.planner import HandoffPlanner  # noqa: E402
+from mujoco_sim.simulation.workcell import WorkcellSim  # noqa: E402
 
 
 def executor():

@@ -2,7 +2,7 @@
 
 ## Authoritative inputs
 
-Physical and task inputs are centralized in `mujoco_sim/project.yaml`:
+Physical and task inputs are centralized in `mujoco_sim/config/project.yaml`:
 
 - robot URDF/MJCF and `world_base` pose;
 - gripper model and mount-to-TCP transform;
@@ -12,7 +12,8 @@ Physical and task inputs are centralized in `mujoco_sim/project.yaml`:
 - handoff, reorientation, scanner, and insertion regions;
 - PCB world frame and PCB-to-hole frames.
 
-`scene_config.yaml` now contains only the current lab's internal photo-matched
+`mujoco_sim/config/internal/scene_fallback.yaml` contains only the current
+lab's internal photo-matched
 table/bin primitive fallback. It is enabled by
 `workstation.generated_fixture_primitives: true`; turn that off when measured
 fixture CAD is supplied through `additional_collision_cad`.

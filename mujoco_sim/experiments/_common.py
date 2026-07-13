@@ -170,7 +170,7 @@ def load_or_derive_direct_plan(
     from mujoco_sim.planner.codec import deserialize_direct
     from mujoco_sim.planner.validation import validate_direct_plan
     from mujoco_sim.planner.planner import HandoffPlanner
-    from mujoco_sim.sim import WorkcellSim
+    from mujoco_sim.simulation.workcell import WorkcellSim
 
     sim = WorkcellSim(project_path=project_path)
     planner = HandoffPlanner(sim, project_path=project_path)

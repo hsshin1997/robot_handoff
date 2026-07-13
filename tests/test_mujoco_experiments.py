@@ -15,7 +15,7 @@ from mujoco_sim.experiments._common import (  # noqa: E402
     extract_direct_plan_payload,
     insertion_preflight,
 )
-from mujoco_sim.project import DEFAULT_PROJECT, Project  # noqa: E402
+from mujoco_sim.modeling.project import DEFAULT_PROJECT, Project  # noqa: E402
 
 
 MODULES = (

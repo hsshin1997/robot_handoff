@@ -8,8 +8,8 @@ commands remain in [mujoco_user_guide.md](mujoco_user_guide.md).
 ## 1. Package layout and dependency direction
 
 Implementation code is grouped by responsibility. Files directly under
-`mujoco_sim/` are intentionally tiny compatibility aliases or established
-`python -m` launchers; new algorithm code belongs in one of these packages:
+`mujoco_sim/` are only the five established `python -m` launchers; new
+algorithm code belongs in one of these packages:
 
 ```text
 mujoco_sim/
@@ -23,8 +23,9 @@ mujoco_sim/
 ├── diagnostics/    debug artifacts and contact-path audit
 ├── apps/           pipeline/viewer/visualization implementations
 ├── experiments/    qualification experiments
+├── config/         project, solver policy, internal fallback, templates
 ├── models/         compiled MJCF and generated CAD
-└── *.yaml          stable user/system configuration locations
+└── cache/          generated offline artifacts and policies
 ```
 
 The dependency direction is kept acyclic:
@@ -45,7 +46,7 @@ core -> offline artifact primitives -> modeling -> simulation
 project/CAD/scene
        |
        v
-HandoffPlanner (`planner/planner.py`; legacy alias `planning.py`)
+HandoffPlanner (`planner/planner.py`)
        |
        +-- plan records and validation (`planner/types.py`, `validation.py`)
        +-- phase contact policy (`simulation/contact_policies.py`)
@@ -55,7 +56,7 @@ HandoffPlanner (`planner/planner.py`; legacy alias `planning.py`)
        +-- reorientation task graph (`planner/stages/reorientation.py`)
        |
        v
-PipelineExecutor (`execution/executor.py`; legacy alias `exec.py`)
+PipelineExecutor (`execution/executor.py`)
        +-- geometric trajectory timing (`execution/timing.py`)
        +-- resource/dependency schedule (`execution/schedule.py`)
        +-- transactional state events
@@ -63,11 +64,13 @@ PipelineExecutor (`execution/executor.py`; legacy alias `exec.py`)
        +-- debug artifact recorder
 ```
 
-Legacy imports such as `mujoco_sim.planning`, `mujoco_sim.sim`, and
-`mujoco_sim.se3` resolve to the exact canonical module objects, preserving
-class identity and existing monkeypatch/integration hooks. The five documented
-root launchers delegate to `apps/` or `diagnostics/` while retaining their
-existing command lines. New code should import canonical package modules.
+The five documented root launchers delegate to `apps/` or `diagnostics/` while
+retaining their existing command lines. Python code should import canonical
+package modules such as `mujoco_sim.planner.planner` or
+`mujoco_sim.simulation.workcell`; the old flat implementation imports were
+removed so the source root cannot grow back into a mixed-responsibility folder.
+Configuration ownership and extension rules are summarized in
+[`mujoco_sim/config/README.md`](../mujoco_sim/config/README.md).
 
 ## 2. Planning stages
 

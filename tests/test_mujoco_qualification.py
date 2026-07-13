@@ -7,11 +7,11 @@ import sys
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
-from mujoco_sim.qualification import (CoverageOutcome,
+from mujoco_sim.offline_tools.qualification import (CoverageOutcome,
                                       PHYSICAL_PREREQUISITE_KEYS,
                                       build_coverage_certificate,
                                       physical_prerequisites)  # noqa: E402
-from mujoco_sim.project import Project  # noqa: E402
+from mujoco_sim.modeling.project import Project  # noqa: E402
 
 
 def test_full_policy_coverage_does_not_hide_missing_physics():

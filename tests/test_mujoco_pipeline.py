@@ -9,10 +9,10 @@ import numpy as np
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
-from mujoco_sim.planning import HandoffPlanner
-from mujoco_sim.se3 import inverse, make_transform, transform_from_rpy
-from mujoco_sim.sim import WorkcellSim
-from mujoco_sim.uncertainty import check_axis_aligned_capture, combine_independent
+from mujoco_sim.planner.planner import HandoffPlanner
+from mujoco_sim.core.se3 import inverse, make_transform, transform_from_rpy
+from mujoco_sim.simulation.workcell import WorkcellSim
+from mujoco_sim.core.uncertainty import check_axis_aligned_capture, combine_independent
 
 
 _planner = None

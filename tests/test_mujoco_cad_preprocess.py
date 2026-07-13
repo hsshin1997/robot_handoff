@@ -10,7 +10,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from mujoco_sim.cad_preprocess import (  # noqa: E402
+from mujoco_sim.modeling.cad_preprocess import (  # noqa: E402
     CANONICAL_STL_HEADER,
     COLLISION_WARNING,
     CADPreprocessError,
@@ -23,7 +23,7 @@ from mujoco_sim.cad_preprocess import (  # noqa: E402
     scale_to_metres,
     verify_preparation,
 )
-from mujoco_sim.offline import fingerprint_content, fingerprint_file  # noqa: E402
+from mujoco_sim.offline_tools.artifacts import fingerprint_content, fingerprint_file  # noqa: E402
 from scripts.prepare_project_cad import prepare_project  # noqa: E402
 
 

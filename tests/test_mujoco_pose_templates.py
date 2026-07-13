@@ -12,10 +12,10 @@ import numpy as np
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
-import mujoco_sim.planning as planning_module
-from mujoco_sim.geometry_grasps import GraspCandidate
-from mujoco_sim.planning import HandoffPlanner
-from mujoco_sim.pose_templates import (
+import mujoco_sim.planner.planner as planning_module
+from mujoco_sim.modeling.grasps import GraspCandidate
+from mujoco_sim.planner.planner import HandoffPlanner
+from mujoco_sim.modeling.pose_templates import (
     PROPOSAL_ONLY_USAGE,
     RPY_CONVENTION,
     TemplateFrame,
@@ -24,7 +24,7 @@ from mujoco_sim.pose_templates import (
     load_pose_template,
     rank_contact_validated_grasps,
 )
-from mujoco_sim.se3 import rpy_matrix
+from mujoco_sim.core.se3 import rpy_matrix
 
 
 def _assert_raises(error_type, callback, text: str):

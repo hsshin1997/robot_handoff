@@ -4,5 +4,5 @@
 # policies live in solver_defaults.yaml. HandoffPlanner never reads this file.
 deprecated: true
 replacement:
-  physical_and_task: mujoco_sim/project.yaml
-  numerical_policies: mujoco_sim/solver_defaults.yaml
+  physical_and_task: mujoco_sim/config/project.yaml
+  numerical_policies: mujoco_sim/config/solver_defaults.yaml

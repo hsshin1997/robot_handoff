@@ -70,7 +70,7 @@ def test_fixture_heights_and_staging_separation():
 
 
 def test_configured_part_is_loaded_and_grasped():
-    from mujoco_sim.sim import WorkcellSim
+    from mujoco_sim.simulation.workcell import WorkcellSim
     sim = WorkcellSim()
     mesh_id = sim.model.mesh("active_part_mesh").id
     assert sim.model.mesh_facenum[mesh_id] == 5150

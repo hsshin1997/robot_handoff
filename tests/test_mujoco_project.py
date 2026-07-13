@@ -13,9 +13,9 @@ import yaml
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
-from mujoco_sim.part_mesh import load_project_part_mesh  # noqa: E402
-from mujoco_sim.project import DEFAULT_PROJECT, Project  # noqa: E402
-from mujoco_sim.se3 import inverse, make_transform  # noqa: E402
+from mujoco_sim.modeling.part_mesh import load_project_part_mesh  # noqa: E402
+from mujoco_sim.modeling.project import DEFAULT_PROJECT, Project  # noqa: E402
+from mujoco_sim.core.se3 import inverse, make_transform  # noqa: E402
 
 
 def _modified_default(mutator):

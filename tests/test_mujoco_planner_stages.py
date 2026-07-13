@@ -11,7 +11,7 @@ import numpy as np
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
-from mujoco_sim.planner_stages import (DirectHandoffSearch,
+from mujoco_sim.planner.stages import (DirectHandoffSearch,
                                        DownstreamCertifier)  # noqa: E402
 
 

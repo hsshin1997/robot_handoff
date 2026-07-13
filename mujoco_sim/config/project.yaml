@@ -45,7 +45,8 @@ workstation:
   collision_cad: assets/workcell/collision_boxes.yaml
   additional_collision_cad: []
   # Current tables/bins have no supplied CAD yet. This enables the documented
-  # photo-matched primitive fallback in internal scene_config.yaml. Set false
+  # photo-matched primitive fallback in config/internal/scene_fallback.yaml.
+  # Set false
   # when those fixtures are supplied through additional_collision_cad.
   generated_fixture_primitives: true
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare every CAD reference in ``mujoco_sim/project.yaml`` for MuJoCo.
+"""Prepare every CAD reference in ``mujoco_sim/config/project.yaml`` for MuJoCo.
 
 Outputs live under ``mujoco_sim/models/generated_cad/<content-digest>/``.
 The index and per-asset metadata are written atomically.  STL units are never
@@ -33,9 +33,10 @@ from mujoco_sim.offline_tools.artifacts import (  # noqa: E402
     fingerprint_content,
     fingerprint_file,
 )
+from mujoco_sim.core.paths import DEFAULT_PROJECT_PATH  # noqa: E402
 
 
-DEFAULT_PROJECT = ROOT / "mujoco_sim" / "project.yaml"
+DEFAULT_PROJECT = DEFAULT_PROJECT_PATH
 DEFAULT_GENERATED = ROOT / "mujoco_sim" / "models" / "generated_cad"
 _CAD_SUFFIXES = {".stl", ".obj", ".step", ".stp"}
 

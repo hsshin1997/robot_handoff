@@ -9,7 +9,7 @@ without coupling this driver to them::
         --hook my_package.mesh_cache:precompute \
         --hook my_package.grasps:precompute
 
-Each hook receives ``mujoco_sim.offline.PrecomputeContext`` and may use its
+Each hook receives ``mujoco_sim.offline_tools.artifacts.PrecomputeContext`` and may use its
 ``ArtifactCache`` to publish dependency-aware artifacts.
 """
 from __future__ import annotations
@@ -36,9 +36,10 @@ from mujoco_sim.offline_tools.artifacts import (  # noqa: E402
     run_precompute_hooks,
     write_project_metadata,
 )
+from mujoco_sim.core.paths import DEFAULT_PROJECT_PATH  # noqa: E402
 
 
-DEFAULT_PROJECT = ROOT / "mujoco_sim" / "project.yaml"
+DEFAULT_PROJECT = DEFAULT_PROJECT_PATH
 DEFAULT_CACHE = ROOT / "mujoco_sim" / "cache"
 DEFAULT_MODEL = ROOT / "mujoco_sim" / "models" / "scene.xml"
 
@@ -105,7 +106,8 @@ def main(argv: list[str] | None = None) -> int:
 
     hook_specs = list(args.hook)
     if args.production:
-        hook_specs.append("mujoco_sim.precompute:precompute_runtime")
+        hook_specs.append(
+            "mujoco_sim.offline_tools.precompute:precompute_runtime")
     hooks = tuple(load_hook(specification) for specification in hook_specs)
     metadata = precompute(
         args.project,

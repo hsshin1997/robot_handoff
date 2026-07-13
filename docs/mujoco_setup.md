@@ -18,7 +18,7 @@ python scripts/prepare_project_cad.py
 python scripts/build_mujoco_scene.py
 
 # Build low-latency grasp, stable-pose, downstream, and task-policy caches.
-python scripts/build_reachability.py --project mujoco_sim/project.yaml \
+python scripts/build_reachability.py --project mujoco_sim/config/project.yaml \
   --model mujoco_sim/models/scene.xml --out mujoco_sim/cache
 python scripts/precompute_pipeline.py --model mujoco_sim/models/scene.xml --production
 ```
@@ -32,7 +32,7 @@ part, known startup grasp, regions, exact world-part insertion targets, and
 insertion/correction frames. Optional XYZ/ASCII-PCD proposal templates may
 prioritize actual-CAD grasp candidates. STL units must be declared because STL
 does not store units. `solver_defaults.yaml` is a system-owned numerical/safety
-policy. The old `grasp_config.yaml` and `pipeline_config.yaml` are deprecated
+policy. The files under `mujoco_sim/config/deprecated/` are deprecated
 placeholders and are not read by the default planner.
 
 The current executable robot adapter is dual GP7. A different robot or an

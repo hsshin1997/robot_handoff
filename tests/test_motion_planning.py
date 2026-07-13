@@ -9,7 +9,7 @@ import numpy as np
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
-from mujoco_sim.motion_planning import (
+from mujoco_sim.planner.motion import (
     JointRRTConnect,
     MotionPlannerConfig,
     PlanningReason,

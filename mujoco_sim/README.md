@@ -13,12 +13,12 @@ Edit implementation code inside the responsibility-based packages:
 | `diagnostics/` | Contact audits and per-stage debug artifacts |
 | `apps/` | Pipeline, viewer, and visualization implementations |
 | `experiments/` | Focused handoff experiments |
+| `config/` | Active configuration, templates, and deprecated tombstones |
 
-The short Python files immediately under `mujoco_sim/` are compatibility
-aliases and stable `python -m` launchers. They contain no algorithm logic and
-should generally not be edited. Configuration YAML, `models/`, and `cache/`
-remain at the package root so the reorganization does not change existing
-projects, compiled MJCF paths, or artifact fingerprints.
+Only five short `python -m` launchers remain directly under `mujoco_sim/`;
+they contain no algorithm logic. Active YAML lives under `config/`, while
+`models/` and `cache/` retain their stable locations. See
+[the configuration map](config/README.md) before adding a new setting.
 
 See [the architecture guide](../docs/mujoco_architecture.md) for dependency
 rules, profiling, timing, and regression-test tiers.

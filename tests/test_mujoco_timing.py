@@ -10,10 +10,10 @@ import numpy as np
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
-from mujoco_sim.execution_schedule import (RobotOperation,
+from mujoco_sim.execution.schedule import (RobotOperation,
                                             build_direct_operation_graph,
                                             schedule_operations)  # noqa: E402
-from mujoco_sim.trajectory_timing import JointVelocityTimingModel  # noqa: E402
+from mujoco_sim.execution.timing import JointVelocityTimingModel  # noqa: E402
 
 
 def timing_model():

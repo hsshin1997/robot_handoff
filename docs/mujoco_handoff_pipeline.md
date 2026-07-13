@@ -24,7 +24,7 @@ the PCB is a solid board with no hole collision model, so
 
 ### User-owned input: `project.yaml`
 
-[project.yaml](../mujoco_sim/project.yaml) is the only project file that a cell
+[project.yaml](../mujoco_sim/config/project.yaml) is the only project file that a cell
 integrator or part author should edit. It contains physical facts and task
 semantics:
 
@@ -65,7 +65,7 @@ that adapter before physical close/contact execution is available.
 
 ### System-owned input: `solver_defaults.yaml`
 
-[solver_defaults.yaml](../mujoco_sim/solver_defaults.yaml) holds numerical and
+[solver_defaults.yaml](../mujoco_sim/config/solver_defaults.yaml) holds numerical and
 safety policy: sampling budgets, IK tolerances, joint margins, clearance,
 uncertainty, adaptive edge resolution, bounded RRT budgets, insertion correction
 envelope, and execution interlocks. These defaults are system/versioned policy;
@@ -78,16 +78,17 @@ RRT-Connect with a 1 s/3000-node budget.
 
 ### Deprecated compatibility files
 
-`pipeline_config.yaml` and `grasp_config.yaml` are deprecated as user inputs.
+`config/deprecated/pipeline_config.yaml` and
+`config/deprecated/grasp_config.yaml` are deprecated as user inputs.
 The current planner compiles its internal compatibility structure from
 `project.yaml` and `solver_defaults.yaml` and never reads either deprecated
 file. They remain only as migration tombstones. Do not add new part rules to
 them.
 
-`scene_config.yaml` is also not a part-planning interface. It currently retains
-the internal photo-matched primitive fixture fallback used when table/bin CAD is
-not supplied. Replace that fallback with workstation collision CAD in
-`project.yaml`; do not treat it as another user tuning layer.
+`config/internal/scene_fallback.yaml` is also not a part-planning interface.
+It retains the internal photo-matched primitive fixture fallback used when
+table/bin CAD is not supplied. Replace that fallback with workstation collision
+CAD in `project.yaml`; do not treat it as another user tuning layer.
 
 ## 2. CAD ingestion and physical-model truth
 
@@ -454,14 +455,14 @@ source .venv/bin/activate
 Prepare/audit all CAD referenced by the project:
 
 ```bash
-python scripts/prepare_project_cad.py --project mujoco_sim/project.yaml
+python scripts/prepare_project_cad.py --project mujoco_sim/config/project.yaml
 ```
 
 For STEP/STP, install FreeCAD and either put `FreeCADCmd`/`freecadcmd` on
 `PATH` or provide it explicitly:
 
 ```bash
-python scripts/prepare_project_cad.py --project mujoco_sim/project.yaml --freecad /absolute/path/to/FreeCADCmd
+python scripts/prepare_project_cad.py --project mujoco_sim/config/project.yaml --freecad /absolute/path/to/FreeCADCmd
 ```
 
 Build the scene from the project assets:
@@ -475,9 +476,9 @@ python scripts/build_mujoco_scene.py --project path/project.yaml --output path/s
 Populate the content-addressed production caches:
 
 ```bash
-python scripts/build_reachability.py --project mujoco_sim/project.yaml \
+python scripts/build_reachability.py --project mujoco_sim/config/project.yaml \
   --model mujoco_sim/models/scene.xml --out mujoco_sim/cache
-python scripts/precompute_pipeline.py --project mujoco_sim/project.yaml \
+python scripts/precompute_pipeline.py --project mujoco_sim/config/project.yaml \
   --model mujoco_sim/models/scene.xml --production
 ```
 

@@ -36,7 +36,7 @@ legacy forms are alternative schemas, not simultaneous constraints.
 The system-owned `solver_defaults.yaml` supplies sampling budgets, numerical
 tolerances, uncertainty/clearance policy, motion-planning bounds, and execution
 interlocks. These are versioned system policies, not part-specific rules.
-`pipeline_config.yaml` and `grasp_config.yaml` are migration tombstones. The
+The files under `mujoco_sim/config/deprecated/` are migration tombstones. The
 planner does not read them, and they must not become new tuning surfaces.
 
 A robot or gripper cannot be reconstructed from unstructured CAD alone.
@@ -867,9 +867,9 @@ Run the canonical workflow from the repository root:
 
 ```bash
 source .venv/bin/activate
-python scripts/prepare_project_cad.py --project mujoco_sim/project.yaml
+python scripts/prepare_project_cad.py --project mujoco_sim/config/project.yaml
 python scripts/build_mujoco_scene.py
-python scripts/precompute_pipeline.py --project mujoco_sim/project.yaml \
+python scripts/precompute_pipeline.py --project mujoco_sim/config/project.yaml \
   --model mujoco_sim/models/scene.xml --production
 python scripts/run_mujoco_tests.py --tier t1
 python scripts/run_mujoco_tests.py --tier t2

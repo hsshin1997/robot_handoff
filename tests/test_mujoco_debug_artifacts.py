@@ -15,13 +15,14 @@ import numpy as np
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
-from mujoco_sim.collision import SceneCollisionChecker  # noqa: E402
-from mujoco_sim.debug_artifacts import DebugArtifactRecorder  # noqa: E402
-from mujoco_sim.exec import PipelineExecutor, PipelineState  # noqa: E402
-from mujoco_sim.kinematics import GP7Kinematics  # noqa: E402
-from mujoco_sim.planning import HandoffPlanner  # noqa: E402
-from mujoco_sim.sim import WorkcellSim  # noqa: E402
-from mujoco_sim import pipeline, visualize_pipeline, visualize_reorientation_demo  # noqa: E402
+from mujoco_sim.simulation.collision import SceneCollisionChecker  # noqa: E402
+from mujoco_sim.diagnostics.artifacts import DebugArtifactRecorder  # noqa: E402
+from mujoco_sim.execution.executor import PipelineExecutor, PipelineState  # noqa: E402
+from mujoco_sim.simulation.kinematics import GP7Kinematics  # noqa: E402
+from mujoco_sim.planner.planner import HandoffPlanner  # noqa: E402
+from mujoco_sim.simulation.workcell import WorkcellSim  # noqa: E402
+from mujoco_sim.apps import (  # noqa: E402
+    pipeline, visualize_pipeline, visualize_reorientation_demo)
 
 
 def _collision_context(sim):
@@ -204,7 +205,7 @@ def test_visual_playback_multiplier_reduces_sync_overhead_safely():
         q = start.copy()
         q[0] += index * 0.0005
         trajectory.append(q)
-    with patch("mujoco_sim.exec.time.sleep") as sleeper:
+    with patch("mujoco_sim.execution.executor.time.sleep") as sleeper:
         accelerated._follow("A", trajectory, 0.25, ("A",))
 
     # Four collision-sampling edges must not inherit the old 4 * 100 ms floor.

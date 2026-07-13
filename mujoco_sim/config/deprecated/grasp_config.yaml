@@ -4,4 +4,4 @@
 # in project.yaml. Grasp candidates are generated from CAD and cached; users
 # do not maintain a per-part axis/roll grasp table.
 deprecated: true
-replacement: mujoco_sim/project.yaml
+replacement: mujoco_sim/config/project.yaml

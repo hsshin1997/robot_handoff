@@ -64,11 +64,11 @@ the easiest way to give an explicit FreeCAD executable for STEP/STP input.
 
 ```bash
 # Optional standalone audit/prewarm.
-python scripts/prepare_project_cad.py --project mujoco_sim/project.yaml
+python scripts/prepare_project_cad.py --project mujoco_sim/config/project.yaml
 
 # Required after changing project assets, frames, fixtures, or initial joints.
 python scripts/build_mujoco_scene.py \
-  --project mujoco_sim/project.yaml \
+  --project mujoco_sim/config/project.yaml \
   --output mujoco_sim/models/scene.xml
 ```
 
@@ -76,7 +76,7 @@ For STEP/STP:
 
 ```bash
 python scripts/prepare_project_cad.py \
-  --project mujoco_sim/project.yaml \
+  --project mujoco_sim/config/project.yaml \
   --freecad /absolute/path/to/FreeCADCmd \
   --linear-deflection-mm 0.05 \
   --angular-deflection-deg 5.0
@@ -93,7 +93,7 @@ metadata.
 
 ```bash
 python scripts/build_reachability.py \
-  --project mujoco_sim/project.yaml \
+  --project mujoco_sim/config/project.yaml \
   --model mujoco_sim/models/scene.xml \
   --out mujoco_sim/cache
 ```
@@ -105,7 +105,7 @@ size in metres). Development-sized overrides are available:
 
 ```bash
 python scripts/build_reachability.py \
-  --project mujoco_sim/project.yaml \
+  --project mujoco_sim/config/project.yaml \
   --model mujoco_sim/models/scene.xml \
   --out mujoco_sim/cache \
   --samples 10000 \
@@ -126,7 +126,7 @@ calibration, TCP, sample count, or voxel size changes.
 
 ```bash
 python scripts/precompute_pipeline.py \
-  --project mujoco_sim/project.yaml \
+  --project mujoco_sim/config/project.yaml \
   --project-root . \
   --model mujoco_sim/models/scene.xml \
   --cache-dir mujoco_sim/cache \
@@ -150,7 +150,7 @@ cache hit. A warm online check is:
 
 ```bash
 python -m mujoco_sim.pipeline \
-  --project mujoco_sim/project.yaml \
+  --project mujoco_sim/config/project.yaml \
   --model mujoco_sim/models/scene.xml \
   --cache mujoco_sim/cache \
   --json
@@ -169,7 +169,7 @@ First run a one-class smoke check:
 
 ```bash
 python scripts/qualify_pipeline.py \
-  --project mujoco_sim/project.yaml \
+  --project mujoco_sim/config/project.yaml \
   --model mujoco_sim/models/scene.xml \
   --cache mujoco_sim/cache \
   --max-classes 1 \
@@ -180,7 +180,7 @@ Then omit `--max-classes` for the complete declared domain:
 
 ```bash
 python scripts/qualify_pipeline.py \
-  --project mujoco_sim/project.yaml \
+  --project mujoco_sim/config/project.yaml \
   --model mujoco_sim/models/scene.xml \
   --cache mujoco_sim/cache \
   --required 1.0 \
@@ -344,7 +344,7 @@ Audit the direct plan's reorientation and insertion interfaces:
 
 ```bash
 python -m mujoco_sim.audit_contacts \
-  --project mujoco_sim/project.yaml \
+  --project mujoco_sim/config/project.yaml \
   --model mujoco_sim/models/scene.xml \
   --cache mujoco_sim/cache
 ```
@@ -353,7 +353,7 @@ Audit the forced reorientation example:
 
 ```bash
 python -m mujoco_sim.audit_contacts \
-  --project mujoco_sim/project.yaml \
+  --project mujoco_sim/config/project.yaml \
   --model mujoco_sim/models/scene.xml \
   --cache mujoco_sim/cache \
   --reorientation-demo

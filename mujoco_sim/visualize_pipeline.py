@@ -1,7 +1,7 @@
-"""Legacy launcher for :mod:`mujoco_sim.apps.visualize_pipeline`."""
-from ._compat import export_module
+"""Stable ``python -m`` launcher for the full-pipeline visualization."""
+from .apps.visualize_pipeline import build_parser, main
 
-_implementation = export_module(globals(), "mujoco_sim.apps.visualize_pipeline")
+__all__ = ["build_parser", "main"]
 
 if __name__ == "__main__":
-    _implementation.main()
+    main()

@@ -42,10 +42,12 @@ MuJoCo uses metres, kilograms, seconds, and radians internally. Pose entries in
 
 ## 2. Configure one project
 
-Edit [../mujoco_sim/project.yaml](../mujoco_sim/project.yaml). This is the
-user-owned project interface. Do not add per-part rules to
-`pipeline_config.yaml` or `grasp_config.yaml`; they are deprecated placeholders.
-`solver_defaults.yaml` is system-owned numerical and safety policy.
+Edit [../mujoco_sim/config/project.yaml](../mujoco_sim/config/project.yaml). This is the
+user-owned project interface. Do not add per-part rules to files under
+`mujoco_sim/config/deprecated/`; they are migration placeholders.
+`mujoco_sim/config/solver_defaults.yaml` is system-owned numerical and safety
+policy. The complete ownership map is in
+[mujoco_sim/config/README.md](../mujoco_sim/config/README.md).
 
 At minimum, configure:
 
@@ -61,7 +63,7 @@ At minimum, configure:
 ### Articulated gripper assets
 
 The repository now contains a validated articulated-gripper descriptor contract
-and [descriptor template](../mujoco_sim/gripper_asset.template.yaml). It checks
+and [descriptor template](../mujoco_sim/config/templates/gripper_asset.template.yaml). It checks
 source MJCF/URDF mount and TCP frames, prismatic/slide limits, moving-finger pad
 geometry, visual/collision names, aperture mapping, namespaces, and the
 post-compilation scene binding.
@@ -326,7 +328,7 @@ re-pick, and lift paths are then checked against the complete scene.
 ```bash
 source .venv/bin/activate
 python scripts/build_mujoco_scene.py \
-  --project mujoco_sim/project.yaml \
+  --project mujoco_sim/config/project.yaml \
   --output mujoco_sim/models/scene.xml
 ```
 
@@ -339,7 +341,7 @@ Check that the static scene loads:
 
 ```bash
 mjpython -m mujoco_sim.viewer \
-  --project mujoco_sim/project.yaml \
+  --project mujoco_sim/config/project.yaml \
   --model mujoco_sim/models/scene.xml
 ```
 
@@ -353,12 +355,12 @@ commands are:
 
 ```bash
 python scripts/build_reachability.py \
-  --project mujoco_sim/project.yaml \
+  --project mujoco_sim/config/project.yaml \
   --model mujoco_sim/models/scene.xml \
   --out mujoco_sim/cache
 
 python scripts/precompute_pipeline.py \
-  --project mujoco_sim/project.yaml \
+  --project mujoco_sim/config/project.yaml \
   --project-root . \
   --model mujoco_sim/models/scene.xml \
   --cache-dir mujoco_sim/cache \
@@ -375,7 +377,7 @@ Plan only:
 
 ```bash
 python -m mujoco_sim.pipeline \
-  --project mujoco_sim/project.yaml \
+  --project mujoco_sim/config/project.yaml \
   --model mujoco_sim/models/scene.xml \
   --cache mujoco_sim/cache
 ```
@@ -384,7 +386,7 @@ Plan and replay the deterministic MuJoCo executor without a GUI:
 
 ```bash
 python -m mujoco_sim.pipeline \
-  --project mujoco_sim/project.yaml \
+  --project mujoco_sim/config/project.yaml \
   --model mujoco_sim/models/scene.xml \
   --cache mujoco_sim/cache \
   --execute
@@ -442,7 +444,7 @@ On macOS, passive MuJoCo applications must be launched with `mjpython`:
 
 ```bash
 mjpython -m mujoco_sim.visualize_pipeline \
-  --project mujoco_sim/project.yaml \
+  --project mujoco_sim/config/project.yaml \
   --model mujoco_sim/models/scene.xml \
   --cache mujoco_sim/cache \
   --playback-speed 4 \
@@ -461,7 +463,7 @@ The forced connector-header reorientation example is:
 
 ```bash
 mjpython -m mujoco_sim.visualize_reorientation_demo \
-  --project mujoco_sim/project.yaml \
+  --project mujoco_sim/config/project.yaml \
   --model mujoco_sim/models/scene.xml \
   --cache mujoco_sim/cache \
   --playback-speed 4 \
@@ -499,7 +501,7 @@ Pass an explicit root when several cells or test runs share a workspace:
 
 ```bash
 python -m mujoco_sim.pipeline \
-  --project mujoco_sim/project.yaml \
+  --project mujoco_sim/config/project.yaml \
   --model mujoco_sim/models/scene.xml \
   --cache mujoco_sim/cache \
   --execute \
@@ -596,7 +598,7 @@ Run the contact audit against the normal plan:
 
 ```bash
 python -m mujoco_sim.audit_contacts \
-  --project mujoco_sim/project.yaml \
+  --project mujoco_sim/config/project.yaml \
   --model mujoco_sim/models/scene.xml \
   --cache mujoco_sim/cache
 ```
@@ -605,7 +607,7 @@ For the forced reorientation branch:
 
 ```bash
 python -m mujoco_sim.audit_contacts \
-  --project mujoco_sim/project.yaml \
+  --project mujoco_sim/config/project.yaml \
   --model mujoco_sim/models/scene.xml \
   --cache mujoco_sim/cache \
   --reorientation-demo
@@ -658,7 +660,7 @@ Smoke-check one class:
 
 ```bash
 python scripts/qualify_pipeline.py \
-  --project mujoco_sim/project.yaml \
+  --project mujoco_sim/config/project.yaml \
   --model mujoco_sim/models/scene.xml \
   --cache mujoco_sim/cache \
   --max-classes 1 \
@@ -669,7 +671,7 @@ Qualify every declared class:
 
 ```bash
 python scripts/qualify_pipeline.py \
-  --project mujoco_sim/project.yaml \
+  --project mujoco_sim/config/project.yaml \
   --model mujoco_sim/models/scene.xml \
   --cache mujoco_sim/cache \
   --required 1.0 \

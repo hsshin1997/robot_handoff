@@ -10,13 +10,13 @@ import numpy as np
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
-from mujoco_sim.plan_validation import (PlanValidationError,
+from mujoco_sim.planner.validation import (PlanValidationError,
                                         validate_direct_plan,
                                         validate_regrasp_plan)  # noqa: E402
-from mujoco_sim.plan_codec import (deserialize_direct, deserialize_regrasp,
+from mujoco_sim.planner.codec import (deserialize_direct, deserialize_regrasp,
                                    serialize_direct,
                                    serialize_regrasp)  # noqa: E402
-from mujoco_sim.planning_types import (DirectHandoffPlan, DownstreamWitness,
+from mujoco_sim.planner.types import (DirectHandoffPlan, DownstreamWitness,
                                        RegraspPlan, ScoreBreakdown)  # noqa: E402
 
 

@@ -55,7 +55,7 @@ def main() -> None:
     args = ap.parse_args()
     w, h = (int(v) for v in args.wh.split("x"))
 
-    from mujoco_sim.sim import WorkcellSim
+    from mujoco_sim.simulation.workcell import WorkcellSim
     sim = WorkcellSim(model_path=MODEL)
     m, d = sim.model, sim.data
     renderer = mujoco.Renderer(m, height=h, width=w)

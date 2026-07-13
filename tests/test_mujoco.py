@@ -11,8 +11,8 @@ import numpy as np
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
-from mujoco_sim.exec import DynamicExecutor, PipelineExecutor
-from mujoco_sim.sim import HandoffSim, WorkcellSim
+from mujoco_sim.execution.executor import DynamicExecutor, PipelineExecutor
+from mujoco_sim.simulation.workcell import HandoffSim, WorkcellSim
 
 
 def test_compatibility_aliases_target_current_stack():

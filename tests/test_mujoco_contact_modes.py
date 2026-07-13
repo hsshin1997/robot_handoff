@@ -10,10 +10,10 @@ import numpy as np
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
-import mujoco_sim.audit_contacts as audit_module
-from mujoco_sim.audit_contacts import ContactSample, _summarize
-from mujoco_sim.collision import AllowedContact
-from mujoco_sim.planning import (EXACT_INSERTION_CONTACTS,
+import mujoco_sim.diagnostics.contact_audit as audit_module
+from mujoco_sim.diagnostics.contact_audit import ContactSample, _summarize
+from mujoco_sim.simulation.collision import AllowedContact
+from mujoco_sim.planner.planner import (EXACT_INSERTION_CONTACTS,
                                  PLACEHOLDER_INSERTION_CONTACTS,
                                  REORIENTATION_CONTACTS,
                                  insertion_contacts)

@@ -12,7 +12,7 @@ import numpy as np
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
-from mujoco_sim.gripper import (  # noqa: E402
+from mujoco_sim.modeling.gripper import (  # noqa: E402
     bind_gripper_scene,
     command_aperture,
     inspect_gripper_model,

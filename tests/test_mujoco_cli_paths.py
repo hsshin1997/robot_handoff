@@ -16,10 +16,12 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from mujoco_sim import audit_contacts, pipeline  # noqa: E402
-from mujoco_sim.project import DEFAULT_PROJECT  # noqa: E402
-from mujoco_sim.sim import MODEL  # noqa: E402
-from mujoco_sim import viewer, visualize_pipeline, visualize_reorientation_demo  # noqa: E402
+from mujoco_sim.diagnostics import contact_audit as audit_contacts  # noqa: E402
+from mujoco_sim.apps import pipeline  # noqa: E402
+from mujoco_sim.modeling.project import DEFAULT_PROJECT  # noqa: E402
+from mujoco_sim.simulation.workcell import MODEL  # noqa: E402
+from mujoco_sim.apps import (  # noqa: E402
+    viewer, visualize_pipeline, visualize_reorientation_demo)
 from scripts import build_mujoco_scene, build_reachability  # noqa: E402
 
 

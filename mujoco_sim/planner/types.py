@@ -2,8 +2,8 @@
 
 Keeping these records separate from the algorithms makes each stage callable
 and testable without importing the 3-D scene, cache implementation, or CLI.
-``mujoco_sim.planning`` remains an exact compatibility alias for this planner
-implementation's public record types.
+The records are kept separate from the search implementation so planning,
+execution, caching, and tests share one stable contract.
 """
 from __future__ import annotations
 
