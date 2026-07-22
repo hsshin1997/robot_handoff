@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="940" height="463" viewBox="0 0 940 463">
+<rect width="100%" height="100%" fill="#f7f8fa"/>
+<text x="34" y="38" font-family="sans-serif" font-size="24" font-weight="700" fill="#17202a">Phase-1 insertion grasp results</text>
+<text x="35" y="98" font-family="monospace" font-size="15" fill="#26323c">phase1_seated_geometric_candidate</text>
+<rect x="405" y="78" width="0.00" height="24" rx="3" fill="#26734d"/>
+<text x="415.00" y="97" font-family="sans-serif" font-size="16" fill="#26323c">0</text>
+<text x="35" y="136" font-family="monospace" font-size="15" fill="#26323c">phase1_preinsert_only_candidate</text>
+<rect x="405" y="116" width="236.73" height="24" rx="3" fill="#d88919"/>
+<text x="651.73" y="135" font-family="sans-serif" font-size="16" fill="#26323c">1460</text>
+<text x="35" y="174" font-family="monospace" font-size="15" fill="#26323c">rejected_preinsert_pcb_collision</text>
+<rect x="405" y="154" width="460.00" height="24" rx="3" fill="#c65345"/>
+<text x="875.00" y="173" font-family="sans-serif" font-size="16" fill="#26323c">2837</text>
+<text x="35" y="212" font-family="monospace" font-size="15" fill="#26323c">rejected_contact_region</text>
+<rect x="405" y="192" width="81.23" height="24" rx="3" fill="#7d8790"/>
+<text x="496.23" y="211" font-family="sans-serif" font-size="16" fill="#26323c">501</text>
+<text x="35" y="252" font-family="sans-serif" font-size="20" font-weight="700" fill="#17202a">Pre-insert-compatible orientation families</text>
+<text x="52" y="276" font-family="monospace" font-size="15" fill="#26323c">close_z_approach_+x: 344</text>
+<text x="52" y="303" font-family="monospace" font-size="15" fill="#26323c">close_z_approach_-x: 460</text>
+<text x="52" y="330" font-family="monospace" font-size="15" fill="#26323c">close_z_approach_-y: 656</text>
+<text x="35" y="429" font-family="sans-serif" font-size="15" fill="#59636d">Geometric screen only; robot IK, complete collision, pad capture, and insertion-force checks are pending.</text>
+</svg>

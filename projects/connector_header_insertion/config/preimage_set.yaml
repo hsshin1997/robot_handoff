@@ -1,0 +1,53 @@
+schema_version: 1
+
+# Layer 3 consumes only individually certified receiver cells. The current
+# layer-2 checker intentionally emits provisional path witnesses and an empty
+# certified_receiver_cell_ids list until the physical TCP and swept collision
+# contracts are complete.
+receiver_insertion_set: ../generated/sets/robot_insertion_set.json
+task_id: connector_header_left_9pin_insertion
+receiver_pose_id: pcb_left_vertical_9pin_socket
+max_reorientation_hops: 1
+
+# Replace this placeholder with the measured/current sender grasp cell(s).
+# `complete: false` prevents an accidental coverage claim while that domain is
+# still unspecified. Positive membership would additionally require the first
+# trajectory artifact to explicitly cover the named class.
+current_grasp_domain:
+  id: sender_current_grasp_domain_pending_measurement
+  complete: false
+  classes:
+    - class_id: current_grasp_unknown
+      representative_grasp_ids: [current_grasp_placeholder]
+      domain:
+        type: unspecified
+        note: Replace with an exact grasp or certified continuous parameter cell.
+
+# A direct edge is accepted only when its external JSON evidence contains a
+# finite rectangular A/B joint trajectory with a shared strictly increasing
+# time_s vector, exact task/receiver/model/world bindings, and
+# canonical current_grasp_domain_sha256/current_class_sha256 bindings for
+# direct-from-current claims. Every edge also
+# maps each mandatory gate to a separately pinned hard_check_record using
+# hard_check_evidence_ids. Each hard-check payload binds both
+# subject_evidence_id and subject_evidence_sha256.
+direct_edges: []
+
+# Transfer-stage reorientation is directed: a validated place trajectory into
+# a named placement and a validated pick trajectory from that same placement
+# form one transition. The final handoff still needs a validated direct edge.
+# A first-place edge additionally maps the class ID to a separately pinned
+# current_class_coverage_record through current_class_coverage_evidence_ids;
+# that record must certify the whole canonical class, not one representative.
+place_edges: []
+pick_edges: []
+
+# Absence or failure of search is UNKNOWN. UNCOVERED is available only when an
+# external certified_empty_handoff_preimage artifact covers both direct and
+# transfer modes over the declared continuous domains.
+exhaustiveness_certificates: []
+# Every entry must supply expected_sha256. Merely loading a file does not
+# establish provenance, and bare `checks: {gate: true}` fields are ignored.
+evidence_artifacts: []
+
+output: ../generated/sets/handoff_preimage_set.json

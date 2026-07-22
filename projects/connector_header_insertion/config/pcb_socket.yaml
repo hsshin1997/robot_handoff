@@ -1,0 +1,138 @@
+schema_version: 1
+project_id: connector_header_insertion
+compatible_pose_library_project_ids:
+  - connector_header_insertion_phase1
+
+# B is the supplied PCB STL frame with its native X/Y axes. The exported top
+# plane is -1.9185e-11 m because of float32 STL rounding and is normalized to
+# Z_B = 0 for the authored socket contract. P is the native connector STL
+# frame. T_B_P_insert maps connector coordinates into the seated PCB frame.
+frames:
+  B:
+    description: Native PCB mesh X/Y axes with the nominal top surface at Z_B = 0.
+    row_axis: [0.0, 1.0, 0.0]
+    nearest_outward_edge_axis: [-1.0, 0.0, 0.0]
+    top_surface_outward_normal: [0.0, 0.0, 1.0]
+    insertion_direction: [0.0, 0.0, -1.0]
+  P:
+    description: Native connector mesh frame.
+    pin_row_axis: [1.0, 0.0, 0.0]
+    short_tail_axis: [0.0, -1.0, 0.0]
+    long_mating_post_axis: [0.0, 0.0, 1.0]
+
+assets:
+  pcb:
+    path: "assets/pcb/pth_pcb 1.STL"
+    sha256: f0f60a1b8586224701b526226c9b525256adb6bd87948009f54e90963e87014a
+    format: binary_stl
+    source_coordinate_unit: millimetre
+    scale_to_m: 0.001
+    byte_count: 606284
+    triangle_count: 12124
+    unique_vertex_count: 5754
+    bounds_min_m: [-0.08642299652, -0.06388100052, -0.00158749998]
+    bounds_max_m: [0.17202198792, 0.06946900177, -0.0000000000191852454]
+    extent_m: [0.25844498444, 0.13335000229, 0.00158749996]
+    watertight: true
+    two_manifold: true
+    through_hole_count: 155
+  connector:
+    path: parts/connector_header/connector_header_part.STL
+    sha256: a4b5b7d55bb44fc7be2ae256311da59d2b1f26bfa316f337d649f9dfe44fdaaa
+    format: binary_stl
+    source_coordinate_unit: millimetre
+    scale_to_m: 0.001
+
+board:
+  nominal_top_surface_z_B_m: 0.0
+  raw_mesh_top_surface_z_B_m: -0.0000000000191852454
+  bottom_surface_z_B_m: -0.001587499976
+  thickness_m: 0.001587499957
+  nearest_outward_edge:
+    axis_B: [-1.0, 0.0, 0.0]
+    coordinate_x_B_m: -0.08642299652
+
+socket:
+  id: circled_left_vertical_nine_hole_row
+  selection_evidence: User-circled unique nine-hole line; the second sketch selects mating posts toward the nearest left board edge.
+  hole_shape_in_stl: regular_12_gon
+  nominal_hole_radius_m: 0.000889
+  nominal_hole_diameter_m: 0.001778
+  nominal_pitch_m: 0.0039624
+  centerline_x_B_m: -0.066468001048
+  # Centers are ordered in increasing +Y_B on the nominal top plane.
+  hole_centers_B_m:
+    - [-0.066468001048, 0.005939001123, 0.0]
+    - [-0.066468001048, 0.009901000261, 0.0]
+    - [-0.066468001048, 0.013863998652, 0.0]
+    - [-0.066468001048, 0.017826000055, 0.0]
+    - [-0.066468001048, 0.021789001147, 0.0]
+    - [-0.066468001048, 0.025751000245, 0.0]
+    - [-0.066468001048, 0.029712999662, 0.0]
+    - [-0.066468001048, 0.033676000277, 0.0]
+    - [-0.066468001048, 0.037638000488, 0.0]
+
+connector_socket_geometry:
+  nominal_pin_side_m: 0.001143
+  pin_row_pitch_m: 0.0039624
+  # Centers are ordered in increasing +X_P. T_B_P_insert reverses their order
+  # along the socket's +Y_B list because the long posts point toward -X_B.
+  pin_centers_x_P_m:
+    - 0.00215950752
+    - 0.00612190795
+    - 0.01008430720
+    - 0.01404670760
+    - 0.01800910760
+    - 0.02197150705
+    - 0.02593390750
+    - 0.02989630795
+    - 0.03385870745
+  short_tail_center_z_P_m: 0.000648842684925
+  seating_plane_y_P_m: 0.00325259662
+  tail_tip_plane_y_P_m: 0.00007759640
+
+# At this pose +Z_P points toward the nearest/left board edge, -Y_P points
+# through the board, and the connector housing seating plane lies on Z_B=0.
+T_B_P_insert:
+  - [0.0,  0.0, -1.0, -0.065819158363]
+  - [-1.0, 0.0,  0.0,  0.039797663304]
+  - [0.0,  1.0,  0.0, -0.003252596620]
+  - [0.0,  0.0,  0.0,  1.0]
+
+tolerances_and_margins:
+  # The hole coordinates are rounded by the supplied STL. This tolerance is
+  # only for reproducing the nominal CAD registration, not manufacturing.
+  maximum_pin_to_hole_center_fit_error_m: 0.0000005
+  seating_plane_fit_tolerance_m: 0.000000001
+  rotation_orthonormal_atol: 0.000000000001
+  nominal_pin_corner_to_circular_hole_clearance_m: 0.00008077695
+  conservative_pin_corner_to_12_gon_inradius_clearance_m: 0.00005048501
+  manufacturing_hole_position_tolerance_m: null
+  manufacturing_hole_diameter_tolerance_m: null
+  calibrated_board_pose_uncertainty_m: null
+
+derived_seated_checks:
+  connector_bounds_B_m:
+    minimum: [-0.083790801813, 0.003957754704, -0.003175000220]
+    maximum: [-0.065896500973, 0.039619356014, 0.007620000120]
+  tail_protrusion_below_board_m: 0.001587500244
+  mating_post_tip_to_left_edge_m: 0.002632194707
+
+assumptions:
+  - The unitless STL coordinates are millimetres; the 1.5875 mm board and 3.9624 mm socket pitch support this interpretation.
+  - Insertion is from the supplied mesh's top surface along -Z_B.
+  - The user sketch selects long mating posts toward the nearest left edge (-X_B); mesh geometry alone also permits a 180-degree yaw with posts inward.
+  - The socket holes are treated as empty ideal geometry; plating, solder, chamfer, lead-in, and manufacturing tolerances are not encoded.
+  - T_B_P_insert is a nominal CAD transform, not a measured workcell or board calibration.
+
+certification_boundary:
+  checked:
+    - Proper rigid transform and explicit P-to-B direction semantics.
+    - All nine nominal tail centerlines align with the user-selected hole row.
+    - Connector seating plane aligns with the nominal PCB top plane.
+    - Nominal square pins fit inside the tessellated socket holes with positive geometric margin.
+  not_checked:
+    - Plating, solder, hole and pin manufacturing tolerance stack.
+    - Board flex, pin compliance, insertion force, or contact dynamics.
+    - Copper, components, fixture, and robot or gripper swept collision.
+    - Measured board pose and calibration uncertainty.

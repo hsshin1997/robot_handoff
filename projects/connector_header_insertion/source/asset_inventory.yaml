@@ -1,0 +1,49 @@
+schema_version: 1
+units_note: All supplied STL coordinates are interpreted as millimetres and scaled by 0.001.
+
+assets:
+  connector_header:
+    role: grasped part and insertion geometry
+    path: parts/connector_header/connector_header_part.STL
+    sha256: a4b5b7d55bb44fc7be2ae256311da59d2b1f26bfa316f337d649f9dfe44fdaaa
+    triangles: 3512
+
+  pcb_pth_board:
+    role: finite insertion target and user-selected nine-hole socket geometry
+    path: "assets/pcb/pth_pcb 1.STL"
+    sha256: f0f60a1b8586224701b526226c9b525256adb6bd87948009f54e90963e87014a
+    triangles: 12124
+    bounds_min_m: [-0.08642299652, -0.06388100052, -0.00158749998]
+    bounds_max_m: [0.17202198792, 0.06946900177, -0.0000000000191852454]
+    socket_contract: projects/connector_header_insertion/config/pcb_socket.yaml
+
+  gripper_complete_reference:
+    role: registration and visual reference; static triangle assembly, not an articulated model
+    path: assets/gripper/full_assembly/GripperCompleteAssy_LongFingers.STL
+    sha256: d0983b972bd22d483cafe3348cbac5c8720e4f082f85a2c974739950188a72a4
+    triangles: 1516822
+
+  gripper_body:
+    role: collision component
+    path: assets/gripper/GripperBodyAssy_LongFingers.STL
+    sha256: 9f591760ac80e4282d733cb8b5a7c0be3e5fc3a68a45d1ec2d016c67b2679323
+    triangles: 1121498
+
+  gripper_left_finger:
+    role: articulated collision component
+    path: assets/gripper/GripperFingerAssy_Long_Left.STL
+    sha256: 61b35328f37cf4751a1fc184656047c8dfcd76f6108faaaace2a8d9bf9daae0a
+    triangles: 16362
+
+  gripper_right_finger:
+    role: articulated collision component
+    path: assets/gripper/GripperFingerAssy_Long_Right.STL
+    sha256: 4c3b4cd5eefacd1465f01689fb047a62c1627f3a41270c346d72b2d420a1102c
+    triangles: 15314
+
+registration_notes:
+  method: Exact source-triangle matching inside the complete assembly STL.
+  complete_assembly_connected_components: 87
+  body_and_two_finger_connected_components: 76
+  omitted_reference_components: 11
+  consequence: The PCB screen uses the supplied body and two finger files and is not a full-assembly collision certificate.

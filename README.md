@@ -123,8 +123,14 @@ connected components.
 ```
 config/cell.yaml     cell geometry + (later) grasps, insert pose
 assets/gp7/          GP7 URDF + meshes (+ gripper, tool0/tcp frames)
-assets/workcell/     raw STL (visual) + collision_boxes.yaml
+assets/workcell/     raw STL, collision boxes, and generated full-cell URDF
 src/scene.py         world loading, robots, part attach/detach
 scripts/run.py       launcher
 scripts/render_check.py  headless camera renders
 ```
+
+For the single-rooted dual-arm workcell model and camera/hand-eye frame
+workflow, see [docs/workcell_urdf.md](docs/workcell_urdf.md).
+For reusable YAML-driven cells with arbitrary robot, gripper, and camera
+models, see the
+[general workcell URDF generator](docs/general_workcell_urdf_generator.md).

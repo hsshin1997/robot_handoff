@@ -1,0 +1,66 @@
+schema_version: 1
+
+# The generated library remains connector-relative. This query supplies one
+# runtime world pose and composes the selected T_P_E seeds into world E targets.
+pose_library: ../generated/grasps/phase1_pose_library.json
+robot: B
+
+# W must identify one concrete workcell/calibration realization. This example
+# is nominal and intentionally unverified; replace both provenance fields when
+# a measured board/workcell calibration is available.
+world_frame:
+  id: gp7_handoff_workcell_nominal_example
+  calibration_fingerprint: nominal-example-unverified
+  calibration_source: query_example.yaml nominal board pose; replace with measured calibration
+
+# Preferred input: measured pose T_W_B of the native PCB STL frame. The socket
+# contract contributes the fixed nominal T_B_P_insert derived from the circled
+# nine-hole row. This example produces a connector target near the current GP7
+# workcell; replace the whole matrix with the measured board pose.
+board_world_pose:
+  - [1.0, 0.0, 0.0,  0.490819158363]
+  - [0.0, 1.0, 0.0, -0.494797663304]
+  - [0.0, 0.0, 1.0,  0.353252596620]
+  - [0.0, 0.0, 0.0,  1.0]
+pcb_socket: pcb_socket.yaml
+
+# Alternative input: remove board_world_pose and pcb_socket, then provide the
+# exact seated connector T_W_P directly as world_part_insert_pose.
+
+preinsert_distance_m: 0.040
+
+# Bounds are expressed in insertion frame I and recorded as a continuous
+# envelope. This query does not sample or certify the envelope.
+correction_bounds:
+  # Zero is intentional. The nominal pin-corner margin to the tessellated hole
+  # is only about 50 micrometres and no manufacturing/calibration tolerance
+  # stack has been supplied. Add nonzero bounds only after that stack is known.
+  lateral_m: 0.0
+  axial_m: 0.0
+  yaw_deg: 0.0
+
+# Keep the example quick and its output reviewable. Remove max_candidates for
+# every currently selected finite-library seed.
+selection:
+  # Phase 1 currently has 1,460 pre-insert-compatible seeds but zero seeds that
+  # clear the conservative infinite PCB plane at seating. Diagnostic mode emits
+  # pre-insert targets only; T_W_E_insert remains null and any nominal seated
+  # arithmetic is labeled as a non-executable witness.
+  purpose: preinsert_diagnostic
+  max_candidates: 64
+
+# Transform composition is the default. Optional --solve-ik is endpoint-only
+# and requires this acknowledgment or --acknowledge-provisional-tcp because the
+# supplied gripper has no calibrated flange-to-E transform yet.
+solve_ik: false
+tcp_assumption:
+  acknowledge_provisional: false
+  note: Current GP7 scene TCP is not calibrated to the long-finger contact frame E.
+
+ik:
+  random_restarts: 18
+  max_solutions: 8
+  position_tolerance_m: 0.0007
+  rotation_tolerance_deg: 0.35
+
+output: ../generated/queries/query_example_result.json

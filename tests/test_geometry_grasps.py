@@ -17,6 +17,7 @@ from mujoco_sim.modeling.grasps import (
     load_binary_stl,
     sample_surface_patches,
 )
+from mujoco_sim.modeling.grasps import _approach_directions
 
 
 def _box_triangles(size, rotation=None, translation=None):
@@ -195,6 +196,25 @@ def test_opening_range_is_a_hard_gripper_capability_gate():
         assert not generate_antipodal_grasps(mesh, too_wide, surface_samples=128)
     finally:
         owner.cleanup()
+
+
+def test_large_approach_budget_uniformly_samples_roll_about_closing_axis():
+    closing = np.array([0.0, 1.0, 0.0])
+    directions = _approach_directions(
+        closing,
+        (np.array([1.0, 0.0, 0.0]), np.array([0.0, 0.0, 1.0])),
+        24,
+    )
+    assert len(directions) == 24
+    assert all(abs(float(direction @ closing)) < 1e-12 for direction in directions)
+    assert all(np.isclose(np.linalg.norm(direction), 1.0) for direction in directions)
+    angles = np.mod(np.arctan2(
+        [direction[2] for direction in directions],
+        [direction[0] for direction in directions],
+    ), 2.0 * np.pi)
+    angles.sort()
+    steps = np.diff(np.r_[angles, angles[0] + 2.0 * np.pi])
+    assert np.allclose(steps, 2.0 * np.pi / 24.0)
 
 
 if __name__ == "__main__":

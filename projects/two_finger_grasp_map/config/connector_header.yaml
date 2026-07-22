@@ -1,0 +1,38 @@
+schema_version: 1
+
+part:
+  path: parts/connector_header/connector_header_part.STL
+  scale_to_m: 0.001
+
+insertion:
+  # Nominal example only. Replace this with the measured seated part pose.
+  T_W_P_insert:
+    - [0.0,  0.0, -1.0,  0.425]
+    - [-1.0, 0.0,  0.0, -0.455]
+    - [0.0,  1.0,  0.0,  0.350]
+    - [0.0,  0.0,  0.0,  1.0]
+  # Connector convention: the short PCB tails move along -Y_P.
+  insertion_axis_P: [0.0, -1.0, 0.0]
+
+gripper:
+  # Provisional ideal contact separation. Replace with the measured or
+  # manufacturer-authoritative pad-to-pad range for this gripper.
+  opening_range_m: [0.002, 0.024]
+  # Modeling assumption, not a material measurement.
+  friction_coefficient: 0.5
+
+map:
+  # Retain surfaces whose normals are within 25 degrees of perpendicular to
+  # the insertion direction.
+  maximum_surface_tilt_from_lateral_deg: 25.0
+  maximum_antipodal_normal_error_deg: 5.0
+  minimum_surface_area_m2: 0.000001
+  # Keep zero for the exact ideal point-contact union. A positive value insets
+  # each triangulated component conservatively and is mesh-dependent; it is
+  # not a substitute for the actual finger-pad footprint.
+  contact_edge_margin_m: 0.0
+  # With ideal point contacts and no environment model, no roll direction can
+  # yet be rejected. The endpoints represent the same periodic orientation.
+  roll_bounds_rad: [-3.141592653589793, 3.141592653589793]
+
+output: ../generated/connector_header_grasp_map.json

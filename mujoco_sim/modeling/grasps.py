@@ -513,6 +513,24 @@ def _approach_directions(
         projected.append(_canonical_sign(reference - closing * float(reference @ closing)))
     if len(projected) == 1:
         projected.append(_canonical_sign(np.cross(closing, projected[0])))
+    if int(count) > 4:
+        # The contact pair fixes jaw closing but leaves a continuous roll
+        # about that axis.  Four approaches preserve the historic
+        # principal-direction behavior; larger budgets explicitly sample the
+        # full roll circle at uniform angular resolution.  This matters for
+        # asymmetric real grippers even when the ideal pads are symmetric.
+        reference = projected[0]
+        quadrature = _unit(
+            np.cross(closing, reference), name="roll quadrature direction",
+        )
+        return tuple(
+            _unit(
+                np.cos(2.0 * np.pi * index / int(count)) * reference
+                + np.sin(2.0 * np.pi * index / int(count)) * quadrature,
+                name="sampled approach direction",
+            )
+            for index in range(int(count))
+        )
     approaches: list[np.ndarray] = []
     for vector in projected:
         approaches.extend((vector, -vector))

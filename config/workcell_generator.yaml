@@ -1,0 +1,228 @@
+# Runnable example for scripts/setup_workcell_urdf.py.
+#
+# Transform convention
+# --------------------
+# `parent_T_child` maps coordinates expressed in the child frame into the
+# parent frame. Translation is always in metres; RPY values are in degrees.
+# The camera pose below is deliberately marked `nominal`: replace it with a
+# measured transform before treating the generated optical frame as calibrated.
+
+schema_version: 1
+name: handoff_workcell_general
+root_link: world
+
+output:
+  urdf: build/workcell/handoff_workcell_general.urdf
+  camera_info_dir: build/camera_info
+  report: build/handoff_workcell_general.report.yaml
+  mesh_uri_mode: relative
+  extension_policy: drop
+  # Keep fixed camera/TCP/frame links addressable when MuJoCo imports the URDF.
+  mujoco_fusestatic: false
+
+# Add package-name-to-directory mappings here when a vendor URDF uses
+# package:// URIs. The checked-in GP7 URDF uses paths relative to its own file.
+package_roots: {}
+
+frames:
+  - name: cell
+    parent:
+      frame: world
+    parent_T_child:
+      position_m: [0.0, 0.0, 0.0]
+      rpy_deg: [0.0, 0.0, 0.0]
+
+static_bodies:
+  - name: workcell_structure
+    parent:
+      frame: cell
+    parent_T_body:
+      position_m: [0.0, 0.0, 0.0]
+      rpy_deg: [0.0, 0.0, 0.0]
+    visuals:
+      - name: workcell_cad
+        geometry:
+          mesh:
+            path: assets/workcell/workcell.stl
+            units: mm
+        material:
+          name: workcell_aluminum
+          rgba: [0.72, 0.75, 0.78, 1.0]
+    collisions:
+      # Expand only the surveyed frame/table groups. The source contains
+      # centre and half-extents in millimetres; the generator converts them
+      # to full URDF box sizes in metres.
+      - geometry:
+          box_set:
+            path: assets/workcell/collision_boxes.yaml
+            groups: [pedestals, boxes]
+            units: from_file
+
+robots:
+  - name: A
+    path: assets/gp7/gp7.urdf
+    parent:
+      frame: cell
+    parent_T_root:
+      position_m: [0.0, 0.0, 0.0]
+      rpy_deg: [0.0, 0.0, 0.0]
+    root_link: base_link
+    flange_link: tool0
+    # gp7.urdf includes a legacy fixed primitive gripper and TCP. Remove that
+    # branch so the selected workcell gripper below is attached exactly once.
+    prune_subtrees_at_joints: [tool0-gripper]
+
+  - name: B
+    path: assets/gp7/gp7.urdf
+    parent:
+      frame: cell
+    parent_T_root:
+      position_m: [0.850, 0.0, 0.0]
+      rpy_deg: [0.0, 0.0, 180.0]
+    root_link: base_link
+    flange_link: tool0
+    prune_subtrees_at_joints: [tool0-gripper]
+
+grippers:
+  - name: A_gripper
+    type: mesh
+    parent:
+      robot: A
+      link: tool0
+    parent_T_mount:
+      position_m: [0.0, 0.0, 0.0]
+      rpy_deg: [0.0, 90.0, 0.0]
+    visuals:
+      - name: gripper_cad
+        geometry:
+          mesh:
+            path: assets/gp7/meshes/gripper.STL
+            units: mm
+        material:
+          name: gripper_dark
+          rgba: [0.08, 0.09, 0.10, 1.0]
+    # The CAD is a disconnected, fixed-open assembly. These explicit boxes
+    # preserve the jaw aperture; using one mesh collision hull would close it.
+    collisions:
+      - name: palm
+        origin:
+          position_m: [0.0, 0.0, 0.050]
+          rpy_deg: [0.0, 0.0, 0.0]
+        geometry:
+          box:
+            size_m: [0.090, 0.095, 0.100]
+      - name: finger_left
+        origin:
+          position_m: [0.0, 0.013, 0.150]
+          rpy_deg: [0.0, 0.0, 0.0]
+        geometry:
+          box:
+            size_m: [0.005, 0.002, 0.100]
+      - name: finger_right
+        origin:
+          position_m: [0.0, -0.013, 0.150]
+          rpy_deg: [0.0, 0.0, 0.0]
+        geometry:
+          box:
+            size_m: [0.005, 0.002, 0.100]
+    tcp:
+      name: tcp
+      mount_T_tcp:
+        position_m: [0.0, 0.0, 0.23292807]
+        rpy_deg: [0.0, 0.0, 0.0]
+
+  - name: B_gripper
+    type: mesh
+    parent:
+      robot: B
+      link: tool0
+    parent_T_mount:
+      position_m: [0.0, 0.0, 0.0]
+      rpy_deg: [0.0, 90.0, 0.0]
+    visuals:
+      - name: gripper_cad
+        geometry:
+          mesh:
+            path: assets/gp7/meshes/gripper.STL
+            units: mm
+        material:
+          name: gripper_dark
+          rgba: [0.08, 0.09, 0.10, 1.0]
+    collisions:
+      - name: palm
+        origin:
+          position_m: [0.0, 0.0, 0.050]
+          rpy_deg: [0.0, 0.0, 0.0]
+        geometry:
+          box:
+            size_m: [0.090, 0.095, 0.100]
+      - name: finger_left
+        origin:
+          position_m: [0.0, 0.013, 0.150]
+          rpy_deg: [0.0, 0.0, 0.0]
+        geometry:
+          box:
+            size_m: [0.005, 0.002, 0.100]
+      - name: finger_right
+        origin:
+          position_m: [0.0, -0.013, 0.150]
+          rpy_deg: [0.0, 0.0, 0.0]
+        geometry:
+          box:
+            size_m: [0.005, 0.002, 0.100]
+    tcp:
+      name: tcp
+      mount_T_tcp:
+        position_m: [0.0, 0.0, 0.23292807]
+        rpy_deg: [0.0, 0.0, 0.0]
+
+cameras:
+  - name: overhead
+    enabled: true
+    mode: eye_to_hand
+    pose_status: nominal
+    parent:
+      frame: cell
+    # Nominal optical frame: +X right in the cell, +Y toward cell -Y, and
+    # optical +Z looking down toward the work surface. Replace with the
+    # calibrated cell_T_camera_optical matrix for production.
+    parent_T_camera_optical:
+      matrix:
+        - [1.0, 0.0, 0.0, 0.425]
+        - [0.0, -1.0, 0.0, 0.000]
+        - [0.0, 0.0, -1.0, 1.550]
+        - [0.0, 0.0, 0.0, 1.0]
+    intrinsics:
+      status: nominal
+      image_width: 1280
+      image_height: 720
+      fx: 900.0
+      fy: 900.0
+      cx: 640.0
+      cy: 360.0
+      skew: 0.0
+      distortion_model: plumb_bob
+      distortion_coefficients: [0.0, 0.0, 0.0, 0.0, 0.0]
+    operating_envelope:
+      # Recommended object-to-optical-centre range for this setup.
+      working_distance_m:
+        min: 0.60
+        nominal: 0.90
+        max: 1.20
+      # Geometric view frustum clipping limits, along optical +Z.
+      view_depth_m:
+        near: 0.20
+        far: 1.50
+      # Usable range reported by a depth sensor, when fitted.
+      depth_measurement_range_m:
+        min: 0.30
+        max: 1.50
+      # Focus limits are separate from both the frustum and depth sensor range.
+      focus:
+        depth_of_field_m:
+          near: 0.65
+          far: 1.15
+
+# Additional semantic or calibration frames can be attached after the robots,
+# grippers, and cameras have been imported.
+attached_frames: []

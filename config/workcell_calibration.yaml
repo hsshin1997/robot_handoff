@@ -1,0 +1,74 @@
+# Calibration inputs for scripts/build_workcell_urdf.py.
+#
+# Transform convention
+# --------------------
+# `parent_T_child` maps coordinates expressed in `child` into `parent`.
+# Translation is always metres. A transform may be written as either:
+#
+#   parent_T_child:
+#     position_m: [x, y, z]
+#     rpy_deg: [roll, pitch, yaw]
+#
+# or as a calibrated homogeneous matrix:
+#
+#   parent_T_child:
+#     matrix:
+#       - [r00, r01, r02, tx]
+#       - [r10, r11, r12, ty]
+#       - [r20, r21, r22, tz]
+#       - [0.0, 0.0, 0.0, 1.0]
+#
+# A camera is emitted only when both `enabled` and `calibrated` are true.
+# This prevents an identity placeholder from being mistaken for a measured
+# extrinsic. Camera intrinsics/distortion belong in a ROS camera_info YAML,
+# not in URDF.
+
+schema_version: 1
+
+cameras:
+  # Fixed/overhead camera (eye-to-hand) example. Replace the matrix with the
+  # measured ^cell T_camera_optical before enabling it.
+  - name: overhead
+    enabled: false
+    calibrated: false
+    mode: eye_to_hand
+    parent: cell
+    parent_T_camera_optical:
+      matrix:
+        - [1.0, 0.0, 0.0, 0.0]
+        - [0.0, 1.0, 0.0, 0.0]
+        - [0.0, 0.0, 1.0, 0.0]
+        - [0.0, 0.0, 0.0, 1.0]
+
+  # Wrist camera (eye-in-hand) example. The parent is tool0, not TCP, because
+  # TCP changes when tooling changes. Replace the matrix with the measured
+  # ^A_tool0 T_camera_optical before enabling it.
+  - name: robot_a_wrist
+    enabled: false
+    calibrated: false
+    mode: eye_in_hand
+    parent: A_tool0
+    parent_T_camera_optical:
+      matrix:
+        - [1.0, 0.0, 0.0, 0.0]
+        - [0.0, 1.0, 0.0, 0.0]
+        - [0.0, 0.0, 1.0, 0.0]
+        - [0.0, 0.0, 0.0, 1.0]
+
+# Optional calibration targets. These use the same parent_T_child convention.
+# Keep an entry disabled until its physical target-to-parent transform has
+# been measured.
+calibration_targets:
+  - name: robot_a_handeye_target
+    enabled: false
+    calibrated: false
+    parent: A_tool0
+    parent_T_target:
+      matrix:
+        - [1.0, 0.0, 0.0, 0.0]
+        - [0.0, 1.0, 0.0, 0.0]
+        - [0.0, 0.0, 1.0, 0.0]
+        - [0.0, 0.0, 0.0, 1.0]
+
+# Generic measured frames can be added here. Each becomes a fixed URDF link.
+additional_frames: []

@@ -1,0 +1,58 @@
+schema_version: 1
+
+# Layer 2 consumes continuous task cells from layer 1. It evaluates only each
+# cell's constructive center_pose.T_P_E; sampled seed representatives remain
+# evidence and can never define the robot result for a cell.
+layer1_artifact: ../generated/sets/insertion_task_set.json
+robot: B
+
+world_frame:
+  id: gp7_handoff_workcell_nominal_example
+  calibration_fingerprint: nominal-example-unverified
+  calibration_source: robot_set.yaml nominal board pose; replace with measured T_W_B
+
+# Runtime measurement of the native PCB mesh frame. The fixed T_B_P_insert is
+# read from the layer-1 artifact and composed as T_W_P = T_W_B @ T_B_P.
+board_world_pose:
+  - [1.0, 0.0, 0.0,  0.490819158363]
+  - [0.0, 1.0, 0.0, -0.494797663304]
+  - [0.0, 0.0, 1.0,  0.353252596620]
+  - [0.0, 0.0, 0.0,  1.0]
+
+# The current layer-1 artifact contains unresolved cells because finite sampled
+# geometry does not certify their full parameter boxes. Include them for
+# visualization and diagnostic IK, while retaining their UNRESOLVED label.
+selection:
+  source_classifications: [SAFE, UNRESOLVED]
+  # A limited run is balanced by contact mode and maximin-spaced over normalized
+  # (u, v, roll), with the exact selected strata recorded in the JSON artifact.
+  max_cells: 24
+
+tcp_contract:
+  calibrated: false
+  calibration_fingerprint: null
+  acknowledge_provisional: true
+  note: Current compiled GP7 TCP is not calibrated to the long-finger gripper contact frame E.
+
+# Optional independently generated proof over complete robot-conditioned cells.
+# Both values must be set together. The loader also verifies the certificate's
+# semantic digest, exact task/world/target/TCP/project/model bindings, and every
+# required hard gate before it can emit any CERTIFIED_SAFE receiver cell.
+continuous_robot_cell_certificate:
+  path: null
+  expected_file_sha256: null
+
+ik:
+  path_sample_count: 9
+  random_restarts: 2
+  max_solutions: 4
+  position_tolerance_m: 0.0007
+  rotation_tolerance_deg: 0.35
+  max_joint_step_rad: 0.35
+  minimum_joint_limit_margin_rad: 0.03
+  minimum_normalized_joint_limit_margin: 0.02
+  minimum_sigma: 0.0001
+
+project: ../../../mujoco_sim/config/project.yaml
+model: ../../../mujoco_sim/models/scene.xml
+output: ../generated/sets/robot_insertion_set.json

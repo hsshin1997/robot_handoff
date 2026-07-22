@@ -1,0 +1,88 @@
+schema_version: 1
+project_id: connector_header_insertion_task_set_v1
+
+# These generated poses are used only as single-pose witnesses inside a
+# continuous (u, v, roll) cell cover. They do not define the continuous set.
+inputs:
+  pose_library: ../generated/grasps/phase1_pose_library.json
+  grasp_generation_config: grasp_generation.yaml
+  pcb_socket: pcb_socket.yaml
+
+# Each mode describes a pair of opposing housing patches. The coordinates are
+# signed projections in the connector STL frame P. Roll is continuous and
+# periodic on [-pi, pi); the finite cells are an adaptive-computation scaffold,
+# not a discrete world-pose database.
+parameterization:
+  minimum_seed_closing_alignment: 0.94
+  contact_modes:
+    - id: housing_opposed_y
+      description: Opposing plastic-housing faces with nominal closing axis +Y_P.
+      closing_axis_P: [0.0, 1.0, 0.0]
+      position_u_axis_P: [1.0, 0.0, 0.0]
+      position_v_axis_P: [0.0, 0.0, 1.0]
+      contact_midplane_coordinate_P_m: 0.007062596679
+      # Roll zero points the gripper approach +Z_E along +X_P. Positive roll
+      # is right-handed about +Y_P, hence its quadrature is -Z_P. This angular
+      # basis is deliberately separate from the +Z_P position-v axis.
+      roll_zero_approach_axis_P: [1.0, 0.0, 0.0]
+      aperture_model:
+        type: constant
+        value_m: 0.007620000124
+        status: authored_nominal_flat_patch_separation
+      u_bounds_P_m: [0.00017830681, 0.03583990860]
+      v_bounds_P_m: [0.00463664293, 0.01492364311]
+      # Range observed on this authored patch family. It is not a constant
+      # aperture model and is not a manufacturer stroke specification.
+      possible_aperture_range_m: [0.0035686995, 0.0076200002]
+      cells: {u: 12, v: 4, roll: 24}
+
+    - id: housing_opposed_z
+      description: Opposing plastic-housing faces with nominal closing axis +Z_P.
+      closing_axis_P: [0.0, 0.0, 1.0]
+      position_u_axis_P: [1.0, 0.0, 0.0]
+      position_v_axis_P: [0.0, 1.0, 0.0]
+      contact_midplane_coordinate_P_m: 0.006541642930
+      roll_zero_approach_axis_P: [1.0, 0.0, 0.0]
+      aperture_model:
+        type: constant
+        value_m: 0.002539999962
+        status: authored_nominal_dominant_flat_patch_separation
+      u_bounds_P_m: [0.00017830681, 0.03583990860]
+      v_bounds_P_m: [0.00325259662, 0.01087259674]
+      possible_aperture_range_m: [0.0025399999, 0.0107950000]
+      cells: {u: 12, v: 4, roll: 24}
+
+finite_pcb_witnesses:
+  enabled: true
+  # Positive evidence only: a sampled gripper vertex strictly inside the
+  # nominal finite PCB is a penetration witness. Absence of that witness is
+  # not collision-free proof because face/edge and between-sample collision
+  # remain possible.
+  maximum_representatives: 24
+  path_samples: 17
+  maximum_vertices_per_component: 16000
+  pcb_top_surface_tolerance_m: 0.00000001
+  pcb_interior_tolerance_m: 0.000002
+  pcb_spatial_bin_size_m: 0.004
+
+output: ../generated/sets/insertion_task_set.json
+
+certification_policy:
+  safe_requires_all_constraints_proved_over_complete_cell: true
+  sampled_witness_may_promote_cell_to_safe: false
+  sampled_witness_may_reject_complete_cell: false
+  current_safe_inner_set_expected_empty: true
+
+# Optional independently generated whole-cell certificates are fail-closed.
+# Every import must declare its exact file SHA in this config and bind the
+# exact semantic hash of the otherwise-uncertified task-set artifact. Empty
+# imports therefore guarantee that no cell can become SAFE in this build.
+whole_cell_task_certificates:
+  required_proved_constraints:
+    - complete_pad_footprint_on_verified_plastic_surface
+    - exact_continuous_gripper_part_collision_clearance
+    - exact_continuous_finite_pcb_collision_clearance
+    - manufacturer_authoritative_aperture_and_registration_limits
+    - insertion_wrench_and_no_slip_margin
+    - declared_geometry_and_calibration_uncertainty_envelope
+  imports: []

@@ -1,0 +1,144 @@
+schema_version: 1
+project_id: connector_header_insertion_phase1
+
+# Every supplied STL is millimetre-authored. The generator converts all
+# geometry to SI once at ingestion and writes only metres to generated files.
+assets:
+  stl_scale_to_m: 0.001
+  part:
+    path: parts/connector_header/connector_header_part.STL
+    sha256: a4b5b7d55bb44fc7be2ae256311da59d2b1f26bfa316f337d649f9dfe44fdaaa
+
+gripper:
+  reference_full_assembly:
+    path: assets/gripper/full_assembly/GripperCompleteAssy_LongFingers.STL
+    sha256: d0983b972bd22d483cafe3348cbac5c8720e4f082f85a2c974739950188a72a4
+
+  # E is the ideal pad-contact frame used by the generic grasp generator.
+  # Its origin is the midpoint of the two recovered flat pad planes.
+  # +X_E = pad width, +Y_E = jaw closing, +Z_E = palm-to-contact approach.
+  # T_G_E maps E into the reference full-assembly STL frame G.
+  T_G_E:
+    - [1.0, 0.0,  0.0, 0.05158356070]
+    - [0.0, 0.0, -1.0, 0.03923275375]
+    - [0.0, 1.0,  0.0, 0.10424298096]
+    - [0.0, 0.0,  0.0, 1.0]
+
+  reference_aperture_m: 0.01183494568
+  opening_axis_G: [0.0, 0.0, 1.0]
+
+  capability:
+    # PROVISIONAL: no articulated CAD, vendor joint limits, or measured stroke
+    # were supplied. Treat this as a test hypothesis, not hardware authority.
+    opening_range_m: [0.002, 0.024]
+    opening_range_provisional: true
+    limit_reserve_m: 0.0005
+    pad_size_m: [0.0067, 0.016]
+    pad_depth_m: 0.244
+    friction_coefficient: 0.5
+
+  # Registration recovered by matching each source STL's triangles in the
+  # reference complete assembly. Finger motion assumes symmetric total
+  # aperture change about the recovered reference planes.
+  components:
+    - name: body
+      asset:
+        path: assets/gripper/GripperBodyAssy_LongFingers.STL
+        sha256: 9f591760ac80e4282d733cb8b5a7c0be3e5fc3a68a45d1ec2d016c67b2679323
+      aperture_multiplier: 0.0
+      T_G_C_reference:
+        - [1.0, 0.0, 0.0, 0.0]
+        - [0.0, 1.0, 0.0, 0.105445942]
+        - [0.0, 0.0, 1.0, 0.0]
+        - [0.0, 0.0, 0.0, 1.0]
+
+    - name: left_upper_finger
+      asset:
+        path: assets/gripper/GripperFingerAssy_Long_Left.STL
+        sha256: 61b35328f37cf4751a1fc184656047c8dfcd76f6108faaaace2a8d9bf9daae0a
+      aperture_multiplier: 0.5
+      T_G_C_reference:
+        - [1.0,  0.0,  0.0, 0.041523561]
+        - [0.0, -1.0,  0.0, 0.130644680]
+        - [0.0,  0.0, -1.0, 0.135915583]
+        - [0.0,  0.0,  0.0, 1.0]
+
+    - name: right_lower_finger
+      asset:
+        path: assets/gripper/GripperFingerAssy_Long_Right.STL
+        sha256: 4c3b4cd5eefacd1465f01689fb047a62c1627f3a41270c346d72b2d420a1102c
+      aperture_multiplier: -0.5
+      T_G_C_reference:
+        - [-1.0,  0.0, 0.0, 0.055583561]
+        - [ 0.0, -1.0, 0.0, 0.130644680]
+        - [ 0.0,  0.0, 1.0, 0.072570379]
+        - [ 0.0,  0.0, 0.0, 1.0]
+
+task:
+  # Connector STL frame P recovered from the supplied geometry:
+  # +X_P = nine-position row, +Z_P = long mating posts,
+  # -Y_P = short bent PCB tails and insertion direction.
+  insertion_axis_P: [0.0, -1.0, 0.0]
+
+  # Insertion frame I has its origin on the PCB seating plane. +X_I follows
+  # the connector row and +Z_I points down/inward along insertion.
+  T_I_P:
+    - [1.0,  0.0, 0.0, 0.0]
+    - [0.0,  0.0, 1.0, 0.0]
+    - [0.0, -1.0, 0.0, 0.00325259662]
+    - [0.0,  0.0, 0.0, 1.0]
+
+  pcb_plane_P:
+    # Free space satisfies normal_P dot p >= offset. The infinite plane is a
+    # conservative screen; finite board edges/holes are not represented yet.
+    free_space_normal_P: [0.0, 1.0, 0.0]
+    offset_P_m: 0.00325259662
+
+  # Conservative plastic-housing contact box. This prevents sampled contacts
+  # on the long mating posts or the short PCB tails. It is authored from the
+  # current mesh and must be revalidated if the part CAD hash changes.
+  graspable_contact_regions:
+    - name: plastic_housing_proxy
+      minimum_P_m: [0.00017830681, 0.00325259662, 0.00463664293]
+      maximum_P_m: [0.03583990860, 0.01087259674, 0.01492364311]
+  contact_region_tolerance_m: 0.00005
+
+  preinsert_distance_m: 0.040
+  minimum_pcb_clearance_m: 0.0005
+
+sampling:
+  # This finite deterministic sampling resolution defines what "all" means
+  # for this phase. Increasing it should monotonically broaden search coverage,
+  # but a missed candidate is never proof that no continuous pose exists.
+  surface_samples: 3200
+  # Uniform 15-degree roll samples about each accepted closing/contact axis.
+  approaches_per_pair: 24
+  max_candidates: 50000
+
+outputs:
+  directory: ../generated
+
+provisional_assumptions:
+  - The supplied STL coordinates are millimetres.
+  - Jaw aperture is total pad-to-pad distance, with symmetric half-motion per finger.
+  - The provisional total aperture range is 2-24 mm pending measured or vendor limits.
+  - Recovered component-to-assembly registrations are used as nominal transforms.
+  - The graspable housing is an authored axis-aligned proxy, not CAD material metadata.
+  - The PCB is an infinite plane and the insertion path is a fixed-orientation straight translation.
+  - Eleven small full-assembly mesh components are not present in the three supplied body/finger STLs.
+
+certification_boundary:
+  checked:
+    - Deterministic antipodal contact hypotheses on the supplied connector STL.
+    - Provisional aperture, friction-cone, ideal pad-support, and ideal palm-depth gates.
+    - Both sampled contact points lie in the authored plastic-housing proxy.
+    - Actual supplied body and finger mesh vertex support clears the infinite PCB plane.
+    - Straight fixed-orientation insertion travel from the configured pre-insert offset.
+  not_checked:
+    - Full gripper-versus-part collision away from the two sampled contacts.
+    - Complete pad footprint capture on plastic rather than pins or empty overhang.
+    - Manufacturer-authoritative jaw stroke, joint axes, joint limits, and actuator force.
+    - Required normal force, insertion wrench, slip margin, and part deformation.
+    - Finite PCB outline, holes, neighboring components, fixture, and full approach sweep.
+    - Robot inverse kinematics, joint limits, singularity, reachability, and arm collision.
+    - Calibration uncertainty and correction/yaw envelope.
