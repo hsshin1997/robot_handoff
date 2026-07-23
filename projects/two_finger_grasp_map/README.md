@@ -59,6 +59,91 @@ projects/two_finger_grasp_map/generated/connector_header_grasp_map.json
 The JSON stores the paired surface planes, continuous family domains, affine
 aperture functions, and roll intervals. It does not store a sampled pose table.
 
+## Draw representative poses
+
+To inspect the set without turning it into a lookup table, render a few
+deterministic representatives:
+
+```bash
+.venv/bin/python scripts/render_two_finger_grasp_candidates.py
+```
+
+The command reads the continuous map above and writes:
+
+```text
+projects/two_finger_grasp_map/generated/visualization/top_down_candidate_poses.png
+projects/two_finger_grasp_map/generated/visualization/top_down_candidate_poses.json
+```
+
+The PNG is a metric top-down projection of the actual connector STL at
+`T_W_P_insert`. It selects the family containing the largest single continuous
+contact-domain component and places six display samples from 10% through 90%
+along the longest projection of that family's complete domain union. The
+samples are only visual markers; they do not replace or discretize the
+continuous family in the map JSON.
+
+Largest-domain selection is a deterministic display heuristic, not a
+grasp-quality or insertion-safety ranking. A later task layer should select
+families using authored graspable-surface semantics and complete gripper/PCB
+clearance.
+
+Each colored pose glyph shows the two ideal contacts and the parallel-jaw
+closing line. At the canonical `roll = 0`, the gripper approach direction is
+the insertion direction. For the included connector pose it points into the
+top-down image; for another world pose the renderer draws its world-XY
+projection or an out-of-page marker. The glyph is intentionally schematic
+rather than a full gripper collision render.
+
+The companion JSON records the exact family, `(u, v, roll)` parameters,
+contacts, aperture, and `T_W_E` for every displayed sample.
+
+### Compare different closing orientations
+
+The single-family image intentionally shows only the broadest family. To group
+the complete map by jaw-closing axis and display representatives from each
+distinct top-down orientation, run:
+
+```bash
+.venv/bin/python scripts/render_two_finger_grasp_candidates.py \
+  --selection-mode orientations \
+  --count-per-orientation 3
+```
+
+This writes:
+
+```text
+projects/two_finger_grasp_map/generated/visualization/top_down_orientation_candidates.png
+projects/two_finger_grasp_map/generated/visualization/top_down_orientation_candidates.json
+```
+
+For the checked-in connector and insertion pose, the 44 local-surface families
+form two top-down closing-direction groups:
+
+- horizontal closing in the image: approximately `+Z_P`, mapped to `-X_W`;
+- vertical closing in the image: `+X_P`, mapped to `-Y_W`.
+
+The vertical orange candidates are mathematically present in the current map,
+but they pair repeated local surfaces at connector pitch. The STL does not mark
+plastic versus pins, and the first layer does not test whether fingers can
+reach those surfaces from outside. Treat them as possible pin/internal-feature
+contacts—not approved connector grasps.
+
+A true vertical, end-to-end grasp around the full connector is different. Its
+measured mesh span is approximately `35.662 mm`, while the configured maximum
+opening is `24 mm`, so that grasp is correctly absent from the current map.
+Only increase the configured opening if the physical gripper actually supports
+it; the material mask, external visibility, finite-pad, and collision checks
+are still required afterward.
+
+Here “horizontal” or “vertical” describes the jaw-closing line in the top-down
+image. It does not change the approach direction: at `roll = 0`, the approach
+still follows the insertion axis into the image.
+
+> **Interpretation boundary:** these are representative samples from one or
+> more continuous object-surface grasp families. Gripper-body collision, finite
+> finger pads, PCB clearance, external visibility, robot reachability, and
+> insertion safety are not certified.
+
 ## What “exposed” means in this version
 
 This first version uses a deliberately local, object-only definition:
@@ -100,11 +185,13 @@ counts are not claims of 44 collision-free or robot-reachable grasps.
 
 ```bash
 .venv/bin/python tests/test_two_finger_grasp_map.py
+.venv/bin/python tests/test_two_finger_grasp_visualization.py
 ```
 
 The focused suite checks an analytic box, disconnected surface regions,
 continuous membership/evaluation, opening and edge constraints, world-frame
-composition, serialization, invalid inputs, and the connector mesh.
+composition, serialization, invalid inputs, the connector mesh, deterministic
+representative selection, PNG rendering, and visualization claim boundaries.
 
 ## Frame convention
 

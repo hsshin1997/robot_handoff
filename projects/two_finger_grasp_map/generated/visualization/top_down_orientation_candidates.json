@@ -1,0 +1,684 @@
+{
+  "artifact_type": "top_down_representative_grasp_candidates",
+  "candidates": [
+    {
+      "T_P_E": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.03068878748416901
+        ],
+        [
+          0.0,
+          0.0,
+          -1.0,
+          0.004402787685394287
+        ],
+        [
+          -0.0,
+          1.0,
+          0.0,
+          0.01003414273262024
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "T_W_E": [
+        [
+          0.0,
+          -1.0,
+          0.0,
+          0.4149658572673797
+        ],
+        [
+          -1.0,
+          0.0,
+          0.0,
+          -0.48568878748416905
+        ],
+        [
+          0.0,
+          0.0,
+          -1.0,
+          0.35440278768539424
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "aperture_m": 0.010794999599456786,
+      "candidate_id": "H1",
+      "contacts_P_m": [
+        [
+          0.03068878748416901,
+          0.004402787685394287,
+          0.004636642932891846
+        ],
+        [
+          0.03068878748416901,
+          0.004402787685394287,
+          0.015431642532348633
+        ]
+      ],
+      "contacts_W_m": [
+        [
+          0.42036335706710815,
+          -0.48568878748416905,
+          0.35440278768539424
+        ],
+        [
+          0.40956835746765136,
+          -0.48568878748416905,
+          0.35440278768539424
+        ]
+      ],
+      "display_fraction": 0.1,
+      "external_visibility_certified": false,
+      "family_id": "family_0037",
+      "insertion_safe": false,
+      "orientation_id": "orientation_1",
+      "parameters": {
+        "roll_rad": 0.0,
+        "u_m": -0.01267967953681946,
+        "v_m": 0.0010723088830709457
+      },
+      "scope": "OBJECT_ONLY_LOCAL_SURFACE_CANDIDATE",
+      "top_down_orientation": "horizontal"
+    },
+    {
+      "T_P_E": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.01800910770893097
+        ],
+        [
+          0.0,
+          0.0,
+          -1.0,
+          0.004402787685394287
+        ],
+        [
+          -0.0,
+          1.0,
+          0.0,
+          0.01003414273262024
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "T_W_E": [
+        [
+          0.0,
+          -1.0,
+          0.0,
+          0.4149658572673797
+        ],
+        [
+          -1.0,
+          0.0,
+          0.0,
+          -0.473009107708931
+        ],
+        [
+          0.0,
+          0.0,
+          -1.0,
+          0.35440278768539424
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "aperture_m": 0.010794999599456786,
+      "candidate_id": "H2",
+      "contacts_P_m": [
+        [
+          0.01800910770893097,
+          0.004402787685394287,
+          0.004636642932891846
+        ],
+        [
+          0.01800910770893097,
+          0.004402787685394287,
+          0.015431642532348633
+        ]
+      ],
+      "contacts_W_m": [
+        [
+          0.42036335706710815,
+          -0.473009107708931,
+          0.35440278768539424
+        ],
+        [
+          0.40956835746765136,
+          -0.473009107708931,
+          0.35440278768539424
+        ]
+      ],
+      "display_fraction": 0.5,
+      "external_visibility_certified": false,
+      "family_id": "family_0037",
+      "insertion_safe": false,
+      "orientation_id": "orientation_1",
+      "parameters": {
+        "roll_rad": 0.0,
+        "u_m": 2.384185800174965e-10,
+        "v_m": 0.0010723088830709457
+      },
+      "scope": "OBJECT_ONLY_LOCAL_SURFACE_CANDIDATE",
+      "top_down_orientation": "horizontal"
+    },
+    {
+      "T_P_E": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.00532942793369293
+        ],
+        [
+          0.0,
+          0.0,
+          -1.0,
+          0.004402787685394287
+        ],
+        [
+          -0.0,
+          1.0,
+          0.0,
+          0.01003414273262024
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "T_W_E": [
+        [
+          0.0,
+          -1.0,
+          0.0,
+          0.4149658572673797
+        ],
+        [
+          -1.0,
+          0.0,
+          0.0,
+          -0.46032942793369297
+        ],
+        [
+          0.0,
+          0.0,
+          -1.0,
+          0.35440278768539424
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "aperture_m": 0.010794999599456786,
+      "candidate_id": "H3",
+      "contacts_P_m": [
+        [
+          0.00532942793369293,
+          0.004402787685394287,
+          0.004636642932891846
+        ],
+        [
+          0.00532942793369293,
+          0.004402787685394287,
+          0.015431642532348633
+        ]
+      ],
+      "contacts_W_m": [
+        [
+          0.42036335706710815,
+          -0.46032942793369297,
+          0.35440278768539424
+        ],
+        [
+          0.40956835746765136,
+          -0.46032942793369297,
+          0.35440278768539424
+        ]
+      ],
+      "display_fraction": 0.9,
+      "external_visibility_certified": false,
+      "family_id": "family_0037",
+      "insertion_safe": false,
+      "orientation_id": "orientation_1",
+      "parameters": {
+        "roll_rad": 0.0,
+        "u_m": 0.01267968001365662,
+        "v_m": 0.0010723088830709457
+      },
+      "scope": "OBJECT_ONLY_LOCAL_SURFACE_CANDIDATE",
+      "top_down_orientation": "horizontal"
+    },
+    {
+      "T_P_E": [
+        [
+          0.0,
+          1.0,
+          0.0,
+          0.019990307331085207
+        ],
+        [
+          0.0,
+          -0.0,
+          -1.0,
+          0.007330502093590558
+        ],
+        [
+          -1.0,
+          0.0,
+          0.0,
+          0.0016127727016806608
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "T_W_E": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.42338722729831935
+        ],
+        [
+          0.0,
+          -1.0,
+          0.0,
+          -0.4749903073310852
+        ],
+        [
+          0.0,
+          0.0,
+          -1.0,
+          0.3573305020935905
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "aperture_m": 0.02095500087738037,
+      "candidate_id": "V1",
+      "contacts_P_m": [
+        [
+          0.00951280689239502,
+          0.007330502093590558,
+          0.0016127727016806608
+        ],
+        [
+          0.030467807769775392,
+          0.007330502093590558,
+          0.0016127727016806608
+        ]
+      ],
+      "contacts_W_m": [
+        [
+          0.42338722729831935,
+          -0.46451280689239505,
+          0.3573305020935905
+        ],
+        [
+          0.42338722729831935,
+          -0.4854678077697754,
+          0.3573305020935905
+        ]
+      ],
+      "display_fraction": 0.1,
+      "external_visibility_certified": false,
+      "family_id": "family_0019",
+      "insertion_safe": false,
+      "orientation_id": "orientation_2",
+      "parameters": {
+        "roll_rad": 0.0,
+        "u_m": -0.007411720329523087,
+        "v_m": -0.0018554055251253248
+      },
+      "scope": "OBJECT_ONLY_LOCAL_SURFACE_CANDIDATE",
+      "top_down_orientation": "vertical"
+    },
+    {
+      "T_P_E": [
+        [
+          0.0,
+          1.0,
+          0.0,
+          0.019990307331085207
+        ],
+        [
+          0.0,
+          -0.0,
+          -1.0,
+          0.007837296485900879
+        ],
+        [
+          -1.0,
+          0.0,
+          0.0,
+          0.01029449301213026
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "T_W_E": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.41470550698786973
+        ],
+        [
+          0.0,
+          -1.0,
+          0.0,
+          -0.4749903073310852
+        ],
+        [
+          0.0,
+          0.0,
+          -1.0,
+          0.35783729648590085
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "aperture_m": 0.02095500087738037,
+      "candidate_id": "V2",
+      "contacts_P_m": [
+        [
+          0.00951280689239502,
+          0.007837296485900879,
+          0.01029449301213026
+        ],
+        [
+          0.030467807769775392,
+          0.007837296485900879,
+          0.01029449301213026
+        ]
+      ],
+      "contacts_W_m": [
+        [
+          0.41470550698786973,
+          -0.46451280689239505,
+          0.35783729648590085
+        ],
+        [
+          0.41470550698786973,
+          -0.4854678077697754,
+          0.35783729648590085
+        ]
+      ],
+      "display_fraction": 0.5,
+      "external_visibility_certified": false,
+      "family_id": "family_0019",
+      "insertion_safe": false,
+      "orientation_id": "orientation_2",
+      "parameters": {
+        "roll_rad": 0.0,
+        "u_m": 0.0012699999809265136,
+        "v_m": -0.0023621999174356463
+      },
+      "scope": "OBJECT_ONLY_LOCAL_SURFACE_CANDIDATE",
+      "top_down_orientation": "vertical"
+    },
+    {
+      "T_P_E": [
+        [
+          0.0,
+          1.0,
+          0.0,
+          0.019990307331085207
+        ],
+        [
+          0.0,
+          -0.0,
+          -1.0,
+          0.007837296485900879
+        ],
+        [
+          -1.0,
+          0.0,
+          0.0,
+          0.016436213360726835
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "T_W_E": [
+        [
+          1.0,
+          0.0,
+          0.0,
+          0.4085637866392732
+        ],
+        [
+          0.0,
+          -1.0,
+          0.0,
+          -0.4749903073310852
+        ],
+        [
+          0.0,
+          0.0,
+          -1.0,
+          0.35783729648590085
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "aperture_m": 0.02095500087738037,
+      "candidate_id": "V3",
+      "contacts_P_m": [
+        [
+          0.00951280689239502,
+          0.007837296485900879,
+          0.016436213360726835
+        ],
+        [
+          0.030467807769775392,
+          0.007837296485900879,
+          0.016436213360726835
+        ]
+      ],
+      "contacts_W_m": [
+        [
+          0.4085637866392732,
+          -0.46451280689239505,
+          0.35783729648590085
+        ],
+        [
+          0.4085637866392732,
+          -0.4854678077697754,
+          0.35783729648590085
+        ]
+      ],
+      "display_fraction": 0.9,
+      "external_visibility_certified": false,
+      "family_id": "family_0019",
+      "insertion_safe": false,
+      "orientation_id": "orientation_2",
+      "parameters": {
+        "roll_rad": 0.0,
+        "u_m": 0.007411720329523088,
+        "v_m": -0.0023621999174356463
+      },
+      "scope": "OBJECT_ONLY_LOCAL_SURFACE_CANDIDATE",
+      "top_down_orientation": "vertical"
+    }
+  ],
+  "insertion_safe": false,
+  "limitations": [
+    "representative samples from distinct closing-axis groups only",
+    "ideal point contacts and schematic jaw pads",
+    "complete gripper collision is not checked",
+    "PCB and insertion-path clearance are not checked",
+    "directional external visibility is not certified",
+    "robot reachability and insertion safety are not certified"
+  ],
+  "part": {
+    "path": "parts/connector_header/connector_header_part.STL",
+    "scale_to_m": 0.001,
+    "sha256": "a4b5b7d55bb44fc7be2ae256311da59d2b1f26bfa316f337d649f9dfe44fdaaa"
+  },
+  "render_semantics": {
+    "gripper_geometry": "schematic ideal parallel-jaw glyph",
+    "part_geometry": "actual STL orthographic projection",
+    "samples_are_visualization_only": true,
+    "samples_define_map": false
+  },
+  "schema_version": 1,
+  "scope": "OBJECT_ONLY_LOCAL_SURFACE_CANDIDATE",
+  "selection": {
+    "configured_opening_range_m": [
+      0.002,
+      0.024
+    ],
+    "detected_orientation_group_count": 2,
+    "maximum_orientation_groups": 3,
+    "mode": "orientation_diverse",
+    "omitted_orientation_group_count": 0,
+    "orientation_group_count": 2,
+    "orientation_groups": [
+      {
+        "closing_axis_P": [
+          0.0,
+          0.0,
+          1.0
+        ],
+        "closing_axis_W": [
+          -1.0,
+          0.0,
+          0.0
+        ],
+        "clustered_family_count": 14,
+        "contact_material_semantics": "unknown_from_stl",
+        "display_aperture_m": 0.010794999599456786,
+        "external_visibility_certified": false,
+        "family_id": "family_0037",
+        "family_largest_domain_area_m2": 1.58365360947116e-05,
+        "full_part_support_span_m": 0.01789430083334446,
+        "full_part_support_span_within_opening_range": true,
+        "insertion_safe": false,
+        "orientation_id": "orientation_1",
+        "plot_prefix": "H",
+        "top_down_orientation": "horizontal"
+      },
+      {
+        "closing_axis_P": [
+          1.0,
+          -0.0,
+          0.0
+        ],
+        "closing_axis_W": [
+          0.0,
+          -1.0,
+          0.0
+        ],
+        "clustered_family_count": 30,
+        "contact_material_semantics": "unknown_from_stl",
+        "display_aperture_m": 0.02095500087738037,
+        "external_visibility_certified": false,
+        "family_id": "family_0019",
+        "family_largest_domain_area_m2": 2.9032193374919217e-06,
+        "full_part_support_span_m": 0.03566160130500794,
+        "full_part_support_span_within_opening_range": false,
+        "insertion_safe": false,
+        "orientation_id": "orientation_2",
+        "plot_prefix": "V",
+        "top_down_orientation": "vertical"
+      }
+    ],
+    "orientation_tolerance_deg": 15.0,
+    "policy": "leader_cluster_unoriented_closing_axes_then_select_largest_domain_largest_aperture_family_per_group",
+    "ranking_intent": "deterministic display heuristic; not external-visibility, grasp-quality, or insertion-safety ranking",
+    "roll_rad": 0.0,
+    "sample_count": 6,
+    "sample_count_per_orientation": 3
+  },
+  "source_map": {
+    "artifact_type": "two_finger_continuous_grasp_map",
+    "path": "projects/two_finger_grasp_map/generated/connector_header_grasp_map.json",
+    "sha256": "89d25d6656ce94b7dc8c8468cfec3cca5b03c6ba906d1e12f80069785ded63c4"
+  },
+  "view": {
+    "approach_glyph": "into_page_cross",
+    "content_bounds_xy_m": [
+      [
+        0.402528356552124,
+        -0.49533990859985355
+      ],
+      [
+        0.4294226573854685,
+        -0.4506783072948456
+      ]
+    ],
+    "frame": "world",
+    "horizontal_axis": "+X_W",
+    "image_size_px": [
+      1400,
+      900
+    ],
+    "pixels_per_m": 15270.388433733264,
+    "type": "orthographic_top_down",
+    "vertical_axis": "+Y_W",
+    "view_direction": "-Z_W",
+    "viewport_bounds_xy_m": [
+      [
+        0.38395274591579204,
+        -0.49533990859985355
+      ],
+      [
+        0.4479982680218005,
+        -0.4506783072948456
+      ]
+    ]
+  }
+}

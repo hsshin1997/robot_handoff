@@ -545,9 +545,16 @@ def _local_support_quality(
     x_axis: np.ndarray,
     z_axis: np.ndarray,
     gripper: ParallelJawGripper,
+    triangle_centroids: np.ndarray | None = None,
 ) -> float:
     """Estimate coplanar surface area available under one rectangular pad."""
-    centroids = np.mean(mesh.triangles, axis=1)
+    centroids = (
+        np.mean(mesh.triangles, axis=1)
+        if triangle_centroids is None
+        else np.asarray(triangle_centroids, dtype=float)
+    )
+    if centroids.shape != (len(mesh.triangles), 3):
+        raise ValueError("triangle_centroids must have shape (N, 3)")
     relative = centroids - point
     normal_alignment = mesh.normals @ normal
     plane_distance = np.abs(relative @ normal)
@@ -575,6 +582,76 @@ def _opening_margin(opening: float, gripper: ParallelJawGripper) -> float:
     distance = min(opening - gripper.min_opening,
                    gripper.max_opening - opening)
     return float(np.clip(2.0 * distance / span, 0.0, 1.0))
+
+
+def _minimum_mesh_coordinate_in_slab(
+    mesh: TriangleMesh,
+    *,
+    origin: np.ndarray,
+    slab_axis: np.ndarray,
+    half_width: float,
+    coordinate_axis: np.ndarray,
+    extra_points: np.ndarray,
+) -> float:
+    """Return the exact minimum surface coordinate inside an infinite slab.
+
+    A linear coordinate reaches its minimum on a clipped triangle at either
+    an original vertex or an edge/plane intersection.  Checking those points
+    avoids the empty-vertex failure of a coarse triangle crossing a thin slab.
+    """
+    relative = mesh.triangles - np.asarray(origin, dtype=float)
+    slab_coordinate = relative @ _unit(slab_axis, name="slab_axis")
+    target_coordinate = relative @ _unit(
+        coordinate_axis,
+        name="coordinate_axis",
+    )
+    half = _finite_scalar(half_width, "half_width")
+    if half < 0.0:
+        raise ValueError("half_width must be non-negative")
+    scale = max(float(np.linalg.norm(mesh.extent)), 1e-12)
+    tolerance = max(1e-10 * scale, 128.0 * _EPS * scale)
+    fraction_tolerance = 1e-10
+    values: list[np.ndarray] = [
+        target_coordinate[np.abs(slab_coordinate) <= half + tolerance]
+    ]
+    for first, second in ((0, 1), (1, 2), (2, 0)):
+        first_slab = slab_coordinate[:, first]
+        second_slab = slab_coordinate[:, second]
+        denominator = second_slab - first_slab
+        usable = np.abs(denominator) > 64.0 * _EPS * scale
+        for boundary in (-half, half):
+            fraction = np.zeros_like(denominator)
+            fraction[usable] = (
+                (boundary - first_slab[usable]) / denominator[usable]
+            )
+            crossing = (
+                usable
+                & (fraction >= -fraction_tolerance)
+                & (fraction <= 1.0 + fraction_tolerance)
+            )
+            interpolated = (
+                target_coordinate[:, first]
+                + fraction
+                * (target_coordinate[:, second] - target_coordinate[:, first])
+            )
+            values.append(interpolated[crossing])
+
+    extras = np.asarray(extra_points, dtype=float)
+    if extras.ndim != 2 or extras.shape[1:] != (3,):
+        raise ValueError("extra_points must have shape (N, 3)")
+    if len(extras):
+        extra_relative = extras - np.asarray(origin, dtype=float)
+        extra_slab = extra_relative @ _unit(slab_axis, name="slab_axis")
+        extra_coordinate = extra_relative @ _unit(
+            coordinate_axis,
+            name="coordinate_axis",
+        )
+        values.append(extra_coordinate[np.abs(extra_slab) <= half + tolerance])
+
+    nonempty = [value for value in values if len(value)]
+    if not nonempty:
+        raise ValueError("mesh surface does not intersect the requested slab")
+    return float(min(np.min(value) for value in nonempty))
 
 
 def _candidate_sort_key(candidate: GraspCandidate) -> tuple[float, ...]:
@@ -608,15 +685,36 @@ def rank_and_deduplicate(
     cosine = float(np.cos(np.radians(angle)))
     ordered = sorted(list(candidates), key=_candidate_sort_key)
     unique: list[GraspCandidate] = []
+    spatial_buckets: dict[tuple[int, int, int], list[GraspCandidate]] = {}
     for candidate in ordered:
+        if tolerance > 0.0:
+            cell = tuple(
+                int(value)
+                for value in np.floor(candidate.midpoint / tolerance)
+            )
+            nearby = (
+                retained
+                for dx in (-1, 0, 1)
+                for dy in (-1, 0, 1)
+                for dz in (-1, 0, 1)
+                for retained in spatial_buckets.get(
+                    (cell[0] + dx, cell[1] + dy, cell[2] + dz),
+                    (),
+                )
+            )
+        else:
+            cell = None
+            nearby = iter(unique)
         duplicate = any(
             np.linalg.norm(candidate.midpoint - retained.midpoint) <= tolerance
             and abs(float(candidate.closing_direction @ retained.closing_direction)) >= cosine
             and float(candidate.approach_direction @ retained.approach_direction) >= cosine
-            for retained in unique
+            for retained in nearby
         )
         if not duplicate:
             unique.append(candidate)
+            if cell is not None:
+                spatial_buckets.setdefault(cell, []).append(candidate)
     if max_candidates is None or len(unique) <= max_candidates:
         return unique
 
@@ -646,13 +744,55 @@ def rank_and_deduplicate(
     return sorted(selected, key=_candidate_sort_key)
 
 
+def _closing_directions(
+    surface_normal: np.ndarray,
+    friction_coefficient: float,
+    count: int,
+) -> tuple[np.ndarray, ...]:
+    """Sample deterministic inward rays inside one Coulomb friction cone."""
+    if not isinstance(count, (int, np.integer)) or isinstance(count, bool):
+        raise TypeError("closing direction count must be an integer")
+    if int(count) <= 0:
+        raise ValueError("closing direction count must be positive")
+    friction = _finite_scalar(friction_coefficient, "friction_coefficient")
+    if friction < 0.0:
+        raise ValueError("friction_coefficient must be non-negative")
+    inward = -_unit(surface_normal, name="surface normal")
+    if int(count) == 1 or friction == 0.0:
+        return (inward,)
+
+    reference = np.eye(3)[int(np.argmin(np.abs(inward)))]
+    tangent_u = _unit(
+        reference - inward * float(reference @ inward),
+        name="friction-cone tangent",
+    )
+    tangent_v = _unit(
+        np.cross(inward, tangent_u),
+        name="friction-cone quadrature tangent",
+    )
+    minimum_cosine = 1.0 / float(np.sqrt(1.0 + friction * friction))
+    directions = [inward]
+    for index in range(1, int(count)):
+        radial_fraction = index / (int(count) - 1)
+        cosine = 1.0 - radial_fraction * (1.0 - minimum_cosine)
+        sine = float(np.sqrt(max(0.0, 1.0 - cosine * cosine)))
+        azimuth = 2.0 * np.pi * _radical_inverse(index, 2)
+        tangent = np.cos(azimuth) * tangent_u + np.sin(azimuth) * tangent_v
+        directions.append(_unit(
+            cosine * inward + sine * tangent,
+            name="sampled friction-cone direction",
+        ))
+    return tuple(directions)
+
+
 def generate_antipodal_grasps(
     mesh: TriangleMesh,
     gripper: ParallelJawGripper,
     *,
     surface_samples: int = 256,
+    closing_directions_per_surface: int = 1,
     approaches_per_pair: int = 4,
-    max_candidates: int = 128,
+    max_candidates: int | None = 128,
 ) -> list[GraspCandidate]:
     """Generate ranked antipodal parallel-jaw grasps for arbitrary geometry.
 
@@ -664,100 +804,156 @@ def generate_antipodal_grasps(
         raise TypeError("mesh must be a TriangleMesh")
     if not isinstance(gripper, ParallelJawGripper):
         raise TypeError("gripper must be a ParallelJawGripper")
-    if surface_samples <= 0 or approaches_per_pair <= 0 or max_candidates <= 0:
-        raise ValueError("sampling budgets must be positive")
+    for value, name in (
+        (surface_samples, "surface_samples"),
+        (closing_directions_per_surface, "closing_directions_per_surface"),
+        (approaches_per_pair, "approaches_per_pair"),
+    ):
+        if not isinstance(value, (int, np.integer)) or isinstance(value, bool):
+            raise TypeError(f"{name} must be an integer")
+        if int(value) <= 0:
+            raise ValueError(f"{name} must be positive")
+    if max_candidates is not None and (
+        not isinstance(max_candidates, (int, np.integer))
+        or isinstance(max_candidates, bool)
+    ):
+        raise TypeError("max_candidates must be an integer or None")
+    if max_candidates is not None and int(max_candidates) <= 0:
+        raise ValueError("max_candidates must be positive or None")
     patches = sample_surface_patches(mesh, int(surface_samples))
     principal = _surface_principal_directions(mesh)
     extent_norm = max(float(np.linalg.norm(mesh.extent)), 1e-9)
     ray_offset = max(1e-8 * extent_norm, 1e-10)
     friction_cosine = 1.0 / np.sqrt(1.0 + gripper.friction_coefficient**2)
-    all_vertices = mesh.triangles.reshape(-1, 3)
+    triangle_centroids = np.mean(mesh.triangles, axis=1)
     candidates: list[GraspCandidate] = []
 
     for patch in patches:
-        inward = -patch.normal
-        ray_origin = patch.point + ray_offset * inward
-        hit = _ray_first_hit(mesh, ray_origin, inward, ray_offset)
-        if hit is None:
-            continue
-        hit_point, hit_normal, hit_triangle = hit
-        separation_vector = hit_point - patch.point
-        opening = float(np.linalg.norm(separation_vector))
-        if not (gripper.min_opening <= opening <= gripper.max_opening):
-            continue
-        closing = separation_vector / opening
-        contact_points = np.vstack((patch.point, hit_point))
-        contact_normals = np.vstack((patch.normal, hit_normal))
-
-        # Normalize finger order for a symmetric gripper.  This removes the
-        # duplicate obtained by casting the reciprocal ray.
-        canonical = _canonical_sign(closing)
-        if float(canonical @ closing) < 0.0:
-            closing = -closing
-            contact_points = contact_points[::-1].copy()
-            contact_normals = contact_normals[::-1].copy()
-            source_triangle, target_triangle = hit_triangle, patch.triangle_index
-        else:
-            source_triangle, target_triangle = patch.triangle_index, hit_triangle
-
-        alignment_0 = float(contact_normals[0] @ (-closing))
-        alignment_1 = float(contact_normals[1] @ closing)
-        antipodal = min(alignment_0, alignment_1)
-        if antipodal + 1e-10 < friction_cosine:
-            continue
-        midpoint = np.mean(contact_points, axis=0)
-
-        for approach in _approach_directions(
-                closing, principal, int(approaches_per_pair)):
-            x_axis = _unit(np.cross(closing, approach), name="pad width axis")
-            z_axis = _unit(np.cross(x_axis, closing), name="approach axis")
-            # The part must fit between the contact plane and palm.  Mesh
-            # vertices outside the jaw slab cannot strike this idealized palm,
-            # so only inspect points between the two jaw planes plus one pad
-            # width of lateral allowance.
-            relative = all_vertices - midpoint
-            jaw_coordinate = relative @ closing
-            slab = np.abs(jaw_coordinate) <= 0.5 * opening + 1e-9
-            rear_extent = max(0.0, -float(np.min(relative[slab] @ z_axis)))
-            palm_clearance = gripper.pad_depth - rear_extent
-            if palm_clearance < -1e-9:
+        for inward in _closing_directions(
+            patch.normal,
+            gripper.friction_coefficient,
+            int(closing_directions_per_surface),
+        ):
+            ray_origin = patch.point + ray_offset * inward
+            hit = _ray_first_hit(mesh, ray_origin, inward, ray_offset)
+            if hit is None:
                 continue
+            hit_point, hit_normal, hit_triangle = hit
+            separation_vector = hit_point - patch.point
+            opening = float(np.linalg.norm(separation_vector))
+            if not (gripper.min_opening <= opening <= gripper.max_opening):
+                continue
+            closing = separation_vector / opening
+            contact_points = np.vstack((patch.point, hit_point))
+            contact_normals = np.vstack((patch.normal, hit_normal))
 
-            support_0 = _local_support_quality(
-                mesh, source_triangle, contact_points[0], contact_normals[0],
-                x_axis, z_axis, gripper)
-            support_1 = _local_support_quality(
-                mesh, target_triangle, contact_points[1], contact_normals[1],
-                x_axis, z_axis, gripper)
-            support = min(support_0, support_1)
-            margin = _opening_margin(opening, gripper)
-            clearance_score = float(np.clip(
-                palm_clearance / gripper.pad_depth, 0.0, 1.0))
-            normalized_antipodal = float(np.clip(
-                (antipodal - friction_cosine) / max(1.0 - friction_cosine, 1e-12),
-                0.0, 1.0))
-            quality = (
-                0.45 * normalized_antipodal
-                + 0.25 * support
-                + 0.15 * margin
-                + 0.15 * clearance_score
-            )
-            transform = np.eye(4)
-            transform[:3, :3] = np.column_stack((x_axis, closing, z_axis))
-            transform[:3, 3] = midpoint
-            candidates.append(GraspCandidate(
-                T_P_E=transform,
-                contact_points=contact_points,
-                contact_normals=contact_normals,
-                required_opening=opening,
-                approach_direction=z_axis,
-                closing_direction=closing,
-                quality=quality,
-                antipodal_quality=antipodal,
-                support_quality=support,
-                opening_margin=margin,
-                palm_clearance=max(0.0, palm_clearance),
-            ))
+            # Normalize finger order for a symmetric gripper.  This removes
+            # the duplicate obtained by casting the reciprocal ray.
+            canonical = _canonical_sign(closing)
+            if float(canonical @ closing) < 0.0:
+                closing = -closing
+                contact_points = contact_points[::-1].copy()
+                contact_normals = contact_normals[::-1].copy()
+                source_triangle = hit_triangle
+                target_triangle = patch.triangle_index
+            else:
+                source_triangle = patch.triangle_index
+                target_triangle = hit_triangle
+
+            alignment_0 = float(contact_normals[0] @ (-closing))
+            alignment_1 = float(contact_normals[1] @ closing)
+            antipodal = min(alignment_0, alignment_1)
+            if antipodal + 1e-10 < friction_cosine:
+                continue
+            midpoint = np.mean(contact_points, axis=0)
+
+            for approach in _approach_directions(
+                    closing, principal, int(approaches_per_pair)):
+                x_axis = _unit(
+                    np.cross(closing, approach),
+                    name="pad width axis",
+                )
+                z_axis = _unit(
+                    np.cross(x_axis, closing),
+                    name="approach axis",
+                )
+                # The part must fit between the contact plane and an idealized
+                # palm.  The current model bounds the palm only between the
+                # two jaw planes and treats it as infinite along the pad-width
+                # axis; exact finite palm/finger geometry remains a downstream
+                # collision gate.
+                rear_extent = max(
+                    0.0,
+                    -_minimum_mesh_coordinate_in_slab(
+                        mesh,
+                        origin=midpoint,
+                        slab_axis=closing,
+                        half_width=0.5 * opening,
+                        coordinate_axis=z_axis,
+                        extra_points=contact_points,
+                    ),
+                )
+                palm_clearance = gripper.pad_depth - rear_extent
+                if palm_clearance < -1e-9:
+                    continue
+
+                support_0 = _local_support_quality(
+                    mesh,
+                    source_triangle,
+                    contact_points[0],
+                    contact_normals[0],
+                    x_axis,
+                    z_axis,
+                    gripper,
+                    triangle_centroids,
+                )
+                support_1 = _local_support_quality(
+                    mesh,
+                    target_triangle,
+                    contact_points[1],
+                    contact_normals[1],
+                    x_axis,
+                    z_axis,
+                    gripper,
+                    triangle_centroids,
+                )
+                support = min(support_0, support_1)
+                margin = _opening_margin(opening, gripper)
+                clearance_score = float(np.clip(
+                    palm_clearance / gripper.pad_depth,
+                    0.0,
+                    1.0,
+                ))
+                normalized_antipodal = float(np.clip(
+                    (antipodal - friction_cosine)
+                    / max(1.0 - friction_cosine, 1e-12),
+                    0.0,
+                    1.0,
+                ))
+                quality = (
+                    0.45 * normalized_antipodal
+                    + 0.25 * support
+                    + 0.15 * margin
+                    + 0.15 * clearance_score
+                )
+                transform = np.eye(4)
+                transform[:3, :3] = np.column_stack(
+                    (x_axis, closing, z_axis)
+                )
+                transform[:3, 3] = midpoint
+                candidates.append(GraspCandidate(
+                    T_P_E=transform,
+                    contact_points=contact_points,
+                    contact_normals=contact_normals,
+                    required_opening=opening,
+                    approach_direction=z_axis,
+                    closing_direction=closing,
+                    quality=quality,
+                    antipodal_quality=antipodal,
+                    support_quality=support,
+                    opening_margin=margin,
+                    palm_clearance=max(0.0, palm_clearance),
+                ))
 
     position_tolerance = max(
         1e-6 * extent_norm,
@@ -767,7 +963,7 @@ def generate_antipodal_grasps(
     return rank_and_deduplicate(
         candidates,
         position_tolerance=position_tolerance,
-        max_candidates=int(max_candidates),
+        max_candidates=None if max_candidates is None else int(max_candidates),
         coverage_scale=extent_norm,
     )
 

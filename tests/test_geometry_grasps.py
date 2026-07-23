@@ -12,12 +12,15 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, ROOT)
 
 from mujoco_sim.modeling.grasps import (
+    GraspCandidate,
     ParallelJawGripper,
     generate_antipodal_grasps,
     load_binary_stl,
+    rank_and_deduplicate,
     sample_surface_patches,
 )
 from mujoco_sim.modeling.grasps import _approach_directions
+from mujoco_sim.modeling.grasps import _closing_directions
 
 
 def _box_triangles(size, rotation=None, translation=None):
@@ -215,6 +218,97 @@ def test_large_approach_budget_uniformly_samples_roll_about_closing_axis():
     angles.sort()
     steps = np.diff(np.r_[angles, angles[0] + 2.0 * np.pi])
     assert np.allclose(steps, 2.0 * np.pi / 24.0)
+
+
+def test_closing_directions_sample_the_source_friction_cone():
+    normal = np.array([0.0, 0.0, 1.0])
+    friction = 0.5
+    directions = _closing_directions(normal, friction, 17)
+    friction_cosine = 1.0 / np.sqrt(1.0 + friction**2)
+    assert len(directions) == 17
+    assert np.array_equal(directions[0], -normal)
+    alignments = np.array([normal @ (-direction) for direction in directions])
+    assert np.all(alignments >= friction_cosine - 1e-12)
+    assert np.isclose(np.min(alignments), friction_cosine)
+    assert np.ptp(np.vstack(directions)[:, 0]) > 0.1
+    assert np.ptp(np.vstack(directions)[:, 1]) > 0.1
+
+
+def test_spatial_dedup_checks_candidates_across_neighboring_hash_cells():
+    def candidate(midpoint, approach, quality):
+        closing = np.array([0.0, 1.0, 0.0])
+        approach = np.asarray(approach, dtype=float)
+        x_axis = np.cross(closing, approach)
+        rotation = np.column_stack((x_axis, closing, approach))
+        transform = np.eye(4)
+        transform[:3, :3] = rotation
+        transform[:3, 3] = midpoint
+        contacts = np.vstack((
+            np.asarray(midpoint) - 0.01 * closing,
+            np.asarray(midpoint) + 0.01 * closing,
+        ))
+        return GraspCandidate(
+            T_P_E=transform,
+            contact_points=contacts,
+            contact_normals=np.vstack((-closing, closing)),
+            required_opening=0.02,
+            approach_direction=approach,
+            closing_direction=closing,
+            quality=quality,
+            antipodal_quality=1.0,
+            support_quality=1.0,
+            opening_margin=1.0,
+            palm_clearance=0.1,
+        )
+
+    high = candidate([0.0099, 0.0, 0.0], [0.0, 0.0, 1.0], 1.0)
+    across_cell_boundary = candidate(
+        [0.0101, 0.0, 0.0],
+        [0.0, 0.0, 1.0],
+        0.9,
+    )
+    distinct_position = candidate(
+        [0.0201, 0.0, 0.0],
+        [0.0, 0.0, 1.0],
+        0.8,
+    )
+    opposite_approach = candidate(
+        [0.0100, 0.0, 0.0],
+        [0.0, 0.0, -1.0],
+        0.7,
+    )
+    retained = rank_and_deduplicate(
+        [across_cell_boundary, opposite_approach, distinct_position, high],
+        position_tolerance=0.01,
+    )
+    assert len(retained) == 3
+    assert retained[0] is high
+    assert retained[1] is distinct_position
+    assert retained[2] is opposite_approach
+
+
+def test_oblique_grasps_on_coarse_thin_mesh_have_nonempty_palm_slab_geometry():
+    owner, mesh, _ = _load_temporary_box([1.0, 1.0, 0.01])
+    gripper = ParallelJawGripper(
+        min_opening=0.005,
+        max_opening=0.030,
+        pad_size=(0.02, 0.02),
+        pad_depth=2.0,
+        friction_coefficient=0.5,
+    )
+    try:
+        candidates = generate_antipodal_grasps(
+            mesh,
+            gripper,
+            surface_samples=24,
+            closing_directions_per_surface=5,
+            approaches_per_pair=4,
+            max_candidates=32,
+        )
+        assert candidates
+        assert all(candidate.palm_clearance >= 0.0 for candidate in candidates)
+    finally:
+        owner.cleanup()
 
 
 if __name__ == "__main__":

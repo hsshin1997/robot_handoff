@@ -13,6 +13,9 @@
 > [MuJoCo architecture](docs/mujoco_architecture.md).
 > Contributors can also use the concise
 > [MuJoCo source map](mujoco_sim/README.md) to locate each subsystem.
+> For surface-relative SE(3) mapping and direct CAD-to-parallel-jaw grasp
+> candidates, see
+> [parallel-jaw grasp generation](docs/parallel_jaw_grasp_generation.md).
 
 Part handoff simulation between two Yaskawa GP7 arms (PyBullet, no ROS).
 
