@@ -171,6 +171,259 @@ For each area-stratified low-discrepancy surface sample, the generator:
 8. deduplicates nearby contact poses while preserving spatial coverage when a
    result cap is requested.
 
+### How candidate quality is computed
+
+Quality is computed only after a candidate passes the hard geometric gates
+above. It is a weighted object-geometry heuristic in `[0, 1]`:
+
+```text
+Q = 0.45 A + 0.25 S + 0.15 M + 0.15 C
+```
+
+where:
+
+```text
+A = normalized antipodal-contact score
+S = minimum estimated pad-support score
+M = opening-range margin
+C = normalized idealized palm-clearance score
+```
+
+The weights are currently fixed in
+`mujoco_sim/modeling/grasps.py`; they are not CLI parameters.
+
+#### Antipodal-contact term `A`
+
+Let:
+
+```text
+c      = unit closing direction from contact 0 to contact 1
+n0, n1 = outward mesh normals at contacts 0 and 1
+mu     = configured friction coefficient
+```
+
+The raw normal alignment and Coulomb friction threshold are:
+
+```text
+a0 = n0 dot (-c)
+a1 = n1 dot c
+a  = min(a0, a1)
+
+gamma = 1 / sqrt(1 + mu^2)
+```
+
+Allowing the generator's numerical comparison tolerance, the candidate is
+rejected before scoring unless:
+
+```text
+a + 1e-10 >= gamma
+```
+
+For a retained candidate, the normalized term is:
+
+```text
+A = clip(
+      (a - gamma) / max(1 - gamma, 1e-12),
+      0,
+      1
+    )
+```
+
+Therefore `A = 0` at the friction-cone boundary and approaches `1` as both
+contact normals become perfectly opposed to the closing forces.
+
+Implementation edge case: when `mu = 0`, `gamma = 1`. The hard gate then
+requires perfect alignment, while the epsilon-protected normalization above
+evaluates `A` to `0` even when `a = 1`. A frictionless configuration therefore
+receives no antipodal-score contribution under the current implementation.
+The `1e-12` denominator floor also affects extremely small friction
+coefficients, approximately `mu < 1.4e-6`.
+
+#### Pad-support term `S`
+
+Support is estimated separately at the two contacts. For each contact, the
+generator considers mesh triangles whose:
+
+1. normal is within `12 degrees` of the contact normal;
+2. centroid lies within the configured pad rectangle in `X_E-Z_E`; and
+3. centroid is within
+   `max(1e-7 * ||mesh_extent||, 1e-10 m)` of the contact plane.
+
+The estimated local area is divided by the configured pad area:
+
+```text
+si = clip(estimated_local_area_i / pad_area, 0, 1)
+S  = min(s0, s1)
+```
+
+The intersected contact facet is always credited up to one pad area, even if
+its centroid falls outside the rectangle. This avoids assigning zero support
+to a contact on one large facet.
+
+This term is deliberately approximate: it sums whole, unprojected triangle
+areas selected by centroid and normal tests, including any disconnected
+coplanar facets that satisfy those tests. The intersected-facet fallback alone
+can produce `si = 1` when that facet is at least as large as the pad. The term
+does not compute an exact pad/mesh intersection, pressure distribution,
+material deformation, or contact patch. It is scored but is not currently a
+hard rejection gate.
+
+#### Opening-margin term `M`
+
+Let `w` be the required opening and `[w_min, w_max]` the configured gripper
+range:
+
+```text
+M = clip(
+      2 * min(w - w_min, w_max - w)
+        / (w_max - w_min),
+      0,
+      1
+    )
+```
+
+`M = 1` at the center of the opening range and `M = 0` at either limit.
+Candidates outside the range are rejected before this score is evaluated.
+
+#### Palm-clearance term `C`
+
+In ideal contact frame `E`, the generator examines the part surface inside
+the jaw slab:
+
+```text
+|y_E| <= w / 2
+```
+
+The slab is unrestricted along `X_E`. Triangle/slab intersections are clipped
+exactly to find the most rearward surface coordinate. With:
+
+```text
+r = max(0, -minimum z_E inside the jaw slab)
+L = configured fingertip-to-palm depth
+p = L - r
+```
+
+the candidate is rejected if `p < -1e-9 m`. The normalized score is:
+
+```text
+C = clip(p / L, 0, 1)
+```
+
+This is clearance to an idealized palm-depth datum, not collision clearance
+for a finite physical palm, fingers, gripper body, or approach sweep.
+
+#### JSON field meanings
+
+The JSON stores a mixture of raw, normalized, and dimensional values:
+
+| JSON field | Meaning |
+|---|---|
+| `quality` | Final weighted score `Q` |
+| `antipodal_quality` | Raw alignment `a`, not normalized `A` |
+| `support_quality` | Normalized minimum pad-support score `S` |
+| `opening_margin` | Normalized opening score `M` |
+| `idealized_palm_clearance_m` | Dimensional clearance `max(0, p)` in metres, not normalized `C` |
+
+`A` and `C` are not serialized directly. Recompute them using the gripper's
+`friction_coefficient` and `finger_tip_to_palm_depth_m`.
+All candidate scalar and array values are rounded to 12 decimal places during
+JSON serialization.
+
+#### Worked example
+
+For the reference connector-header candidate
+`grasp_659e79b1b9509695`:
+
+```text
+mu    = 0.5
+gamma = 1 / sqrt(1 + 0.5^2) = 0.894427
+
+a = 1.000000
+A = 1.000000
+
+S = 0.707660
+M = 0.510909
+
+p = 0.035033 m
+L = 0.040000 m
+C = p / L = 0.875833
+```
+
+The final score is:
+
+```text
+Q = 0.45(1.000000)
+  + 0.25(0.707660)
+  + 0.15(0.510909)
+  + 0.15(0.875833)
+  = 0.834926
+```
+
+This matches the serialized `quality` value, subject to JSON rounding.
+
+#### How quality affects output order
+
+Before deduplication, candidates are sorted by descending full-precision `Q`;
+deterministic rounded pose values break exact score ties. Deduplication
+therefore retains the highest-quality member of each locally equivalent pose
+group. Its equivalence test uses midpoint position, a sign-invariant closing
+axis, and an oriented approach axis. Opening/contact differences are not
+separate deduplication coordinates.
+
+With `--max-candidates 0`, every retained unique candidate is returned in
+descending quality order. With a positive cap, the bounded subset is not
+strictly top-`Q`: after seeding with the highest-quality candidate, selection
+balances:
+
+```text
+q_norm = (Q - Q_min) / max(Q_max - Q_min, 1e-12)
+
+d_norm = min(
+           nearest_selected_midpoint_distance / ||mesh_extent||,
+           1
+         )
+
+selection_objective = 0.82 * q_norm + 0.18 * d_norm
+```
+
+The selected subset is sorted by descending `Q` before serialization.
+Visualization mode `pose-diverse` applies a separate display-coverage
+selection and does not change any candidate's quality.
+
+Candidate `index` is its final serialized output rank. Because ranking uses
+full-precision `Q` before 12-decimal serialization, source order is
+authoritative when displayed `quality` values appear tied.
+
+#### Comparing scores
+
+Compare `quality` values only among candidates generated with the same CAD
+tessellation, gripper dimensions, friction coefficient, and generation
+settings. In particular:
+
+- support depends on triangle sizes and centroid placement;
+- changing `mu` changes both the friction hard gate and normalization of `A`;
+- different rolls for the same contact pair can change support and palm fit;
+- a capped result can trade some quality for midpoint coverage; and
+- the cap objective has no orientation or opening-coverage term.
+
+Consequently scores from different meshes, grippers, or friction settings are
+not calibrated to a shared scale.
+
+#### What quality does not mean
+
+`Q` is not a success probability, force-closure certificate, or task score.
+It does not include:
+
+- complete physical gripper/part collision;
+- pregrasp-to-grasp swept collision;
+- fixture or environment collision;
+- robot IK, joint limits, reachability, or motion planning;
+- task wrench resistance;
+- material compliance, uncertainty, or dynamics.
+
+Those remain downstream feasibility gates even for a candidate with
+`quality` close to `1`.
+
 Every candidate contains:
 
 ```text
@@ -178,7 +431,11 @@ T_P_E
 two contact points and normals in CAD frame P
 closing and approach directions
 required opening w
-quality components
+quality
+antipodal_quality
+support_quality
+opening_margin
+idealized_palm_clearance_m
 ```
 
 `E` is an ideal contact frame at the contact midpoint. It is not automatically
